@@ -35,20 +35,34 @@ if not os.path.exists(archivo_csv):
     pd.DataFrame(columns=["Nombre", "Pais", "Depto", "Lat", "Lon", "Info"]).to_csv(archivo_csv, index=False)
 df = pd.read_csv(archivo_csv)
 
-# --- 4. FUNCIÓN CEREBRO: SHAUN HASTINGS (MODO ESPAÑOL) ---
+# --- 4. FUNCIÓN CEREBRO: SHAUN HASTINGS (VERSIÓN BLINDADA) ---
 def obtener_reporte(ciudad, pais_nombre):
     if model:
         try:
-            # Aquí forzamos el idioma Español en las instrucciones
             prompt = (
                 f"Actúa como Shaun Hastings de Assassin's Creed. Dame un reporte táctico de {ciudad}, {pais_nombre}. "
-                "Responde EXCLUSIVAMENTE en ESPAÑOL. Sé cínico, británico, muy inteligente y sarcástico. "
-                "Máximo 300 caracteres."
+                "Responde en ESPAÑOL. Sé cínico y sarcástico. Máximo 250 caracteres."
             )
-            response = model.generate_content(prompt)
-            return response.text
-        except:
-            return "Error de enlace táctico. Shaun está ocupado con su té."
+            # Añadimos parámetros de seguridad relajados para evitar bloqueos tontos
+            response = model.generate_content(
+                prompt,
+                safety_settings={
+                    "HATE": "BLOCK_NONE",
+                    "HARASSMENT": "BLOCK_NONE",
+                    "DANGEROUS": "BLOCK_NONE",
+                    "SEXUAL": "BLOCK_NONE",
+                }
+            )
+            
+            # Validamos si la respuesta tiene texto antes de acceder a él
+            if response and response.candidates and response.candidates[0].content.parts:
+                return response.text
+            else:
+                return f"Nodo {ciudad} parcialmente encriptado. Los servidores de Abstergo están interfiriendo."
+        except Exception as e:
+            # Esto te dirá en la consola de Streamlit qué está pasando realmente
+            print(f"DEBUG: Error en Gemini: {e}")
+            return "Error de enlace. Shaun está ocupado con su té (y el firewall de Abstergo)."
     return "IA fuera de línea."
 
 # --- 5. PANEL LATERAL ---
