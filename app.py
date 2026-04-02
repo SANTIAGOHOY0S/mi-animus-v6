@@ -4,89 +4,86 @@ from streamlit_folium import st_folium
 import google.generativeai as genai
 import pandas as pd
 import os
+import json
 from geopy.geocoders import Nominatim
-from deep_translator import GoogleTranslator
 
-# --- 1. CONFIGURACIÓN DE IA (ESCANEO AUTOMÁTICO) ---
+# --- 1. CONFIGURACIÓN DE IA ---
 st.set_page_config(page_title="Animus OS V6", layout="wide")
 
 model = None
-
 if "GEMINI_KEY" in st.secrets:
-    try:
-        genai.configure(api_key=st.secrets["GEMINI_KEY"])
-        
-        # BUSCAMOS EL MODELO DISPONIBLE AUTOMÁTICAMENTE
-        modelos_disponibles = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        if modelos_disponibles:
-            # Elegimos el primero de la lista (normalmente gemini-pro o gemini-1.5-flash)
-            model_name = modelos_disponibles[0]
-            model = genai.GenerativeModel(model_name)
-            st.sidebar.success(f"🛰️ Enlace establecido con: {model_name}")
-        else:
-            st.error("❌ No se encontraron modelos disponibles en esta cuenta.")
-            
-    except Exception as e:
-        st.error(f"Error crítico de hardware: {e}")
-else:
-    st.error("🔑 No se encontró la GEMINI_KEY en Secrets.")
+    genai.configure(api_key=st.secrets["GEMINI_KEY"])
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- 2. SEGURIDAD: INGRESO DE CUARTEL GENERAL (CON ESCUDO) ---
-if 'cg' not in st.session_state:
-    st.title("🦅 Sistema de Sincronización Animus")
-    cg_input = st.text_input("Define la ubicación de tu Cuartel General:", value="Bella Suiza, Bogota")
-    if st.button("Iniciar Sincronización de ADN"):
-        try:
-            # Le ponemos un nombre de agente único para que no nos bloqueen
-            geoloc = Nominatim(user_agent="animus_tactical_unit_santiago_27")
-            loc = geoloc.geocode(cg_input, timeout=10) # Más tiempo de espera
-            if loc:
-                st.session_state.cg = {"nombre": cg_input, "lat": loc.latitude, "lon": loc.longitude}
-                st.rerun()
-            else:
-                st.error("📍 El Animus no encontró esa ubicación. Intenta con algo más general.")
-        except Exception as e:
-            st.error("📡 Satélites ocupados. Espera 5 segundos y vuelve a intentar.")
-    st.stop()
+# --- 2. CARGA DEL MAPA (GIST JOHN GUERRA) ---
+geojson_path = "colombia.json"
+geo_data = None
+if os.path.exists(geojson_path):
+    with open(geojson_path, encoding='utf-8') as f:
+        geo_data = json.load(f)
 
 # --- 3. BASE DE DATOS ---
 archivo_csv = "animus_data.csv"
 if not os.path.exists(archivo_csv):
-    pd.DataFrame(columns=["Nombre", "Estado", "Pais", "Lat", "Lon", "Info"]).to_csv(archivo_csv, index=False)
+    pd.DataFrame(columns=["Nombre", "Depto", "Lat", "Lon", "Info"]).to_csv(archivo_csv, index=False)
 df = pd.read_csv(archivo_csv)
 
-# --- 4. FUNCIÓN SHAUN HASTINGS (IA) ---
+# --- 4. FUNCIÓN SHAUN HASTINGS ---
 def reporte_shaun(lugar):
     if model:
-        prompt = f"Eres Shaun Hastings de Assassin's Creed. Dame un reporte táctico/histórico de {lugar} (max 280 caracteres). Sé inteligente y sarcástico."
+        prompt = f"Actúa como Shaun Hastings de AC. Reporte táctico de {lugar} (max 280 chars). Sé cínico y sarcástico."
         try:
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            return f"Error de enlace: {str(e)[:50]}..." # Esto nos dirá el error real
-    return "IA no conectada."
+            return model.generate_content(prompt).text
+        except: return "Error de enlace táctico."
+    return "Shaun fuera de línea."
 
-# --- 5. INTERFAZ ---
-st.sidebar.title(f"📍 CG: {st.session_state.cg['nombre']}")
-with st.sidebar.form("nuevo_nodo"):
-    nombre = st.text_input("Ciudad/Pueblo:")
-    pais = st.text_input("País:", value="Colombia")
-    if st.form_submit_button("Sincronizar Atalaya"):
-        geoloc = Nominatim(user_agent="animus_v6_santiago")
-        loc = geoloc.geocode(f"{nombre}, {pais}")
+# --- 5. PANEL LATERAL ---
+if 'cg' not in st.session_state:
+    st.session_state.cg = {"lat": 4.703, "lon": -74.030} # Bella Suiza por defecto
+
+st.sidebar.title("🦅 Panel del Animus")
+with st.sidebar.form("atalaya"):
+    nombre = st.text_input("Ciudad/Lugar:")
+    depto_input = st.text_input("Departamento (Escríbelo tal cual: Antioquia, Cundinamarca, etc.):")
+    if st.form_submit_button("Sincronizar"):
+        geoloc = Nominatim(user_agent="animus_v6")
+        loc = geoloc.geocode(f"{nombre}, Colombia")
         if loc:
-            info_ia = reporte_shaun(nombre)
-            nuevo = pd.DataFrame([{"Nombre": nombre, "Pais": pais, "Lat": loc.latitude, "Lon": loc.longitude, "Info": info_ia}])
+            info = reporte_shaun(nombre)
+            nuevo = pd.DataFrame([{"Nombre": nombre, "Depto": depto_input, "Lat": loc.latitude, "Lon": loc.longitude, "Info": info}])
             df = pd.concat([df, nuevo], ignore_index=True)
             df.to_csv(archivo_csv, index=False)
             st.rerun()
 
-# --- 6. MAPA ---
-mapa = folium.Map(location=[st.session_state.cg['lat'], st.session_state.cg['lon']], zoom_start=12, tiles="CartoDB dark_matter")
-folium.Marker([st.session_state.cg['lat'], st.session_state.cg['lon']], icon=folium.Icon(color="green", icon="home")).add_to(mapa)
+# --- 6. MAPA TÁCTICO ---
+mapa = folium.Map(location=[4.5708, -74.2973], zoom_start=6, tiles="CartoDB dark_matter")
 
+# RESALTADO DE TERRITORIOS
+if geo_data:
+    deptos_conquistados = df['Depto'].unique().tolist()
+    folium.GeoJson(
+        geo_data,
+        style_function=lambda feature: {
+            'fillColor': '#ff4b4b' if feature['properties']['DPTO'] in deptos_conquistados else 'transparent',
+            'color': '#444',
+            'weight': 1,
+            'fillOpacity': 0.4 if feature['properties']['DPTO'] in deptos_conquistados else 0,
+        }
+    ).add_to(mapa)
+
+# PINES CON POPUP HORIZONTAL (ESTILO CONSOLA)
 for _, f in df.iterrows():
-    folium.Marker([f['Lat'], f['Lon']], popup=f"<b>{f['Nombre']}</b><br>{f['Info']}", icon=folium.Icon(color="red")).add_to(mapa)
+    html = f"""
+    <div style="width: 350px; font-family: 'Courier New', Courier, monospace; color: #00ff00; background-color: #000; padding: 15px; border: 2px solid #ff4b4b; border-radius: 8px;">
+        <b style="font-size: 16px; color: #ff4b4b;">> UBICACIÓN: {f['Nombre'].upper()}</b><br>
+        <hr style="border: 0.5px solid #333;">
+        <p style="font-size: 13px; line-height: 1.5; text-align: justify;">{f['Info']}</p>
+        <p style="font-size: 10px; color: #666; margin-top: 10px;">// REPORTE DE HASTINGS, S. //</p>
+    </div>
+    """
+    iframe = folium.IFrame(html, width=380, height=220)
+    popup = folium.Popup(iframe, max_width=380)
+    
+    folium.Marker([f['Lat'], f['Lon']], popup=popup, icon=folium.Icon(color="red", icon="crosshairs", prefix="fa")).add_to(mapa)
 
-st_folium(mapa, width="100%", height=600)
+st_folium(mapa, width="100%", height=650)
