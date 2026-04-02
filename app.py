@@ -27,16 +27,22 @@ if "GEMINI_KEY" in st.secrets:
 else:
     st.error("🔑 No se encontró la GEMINI_KEY en Secrets.")
 
-# --- 2. SEGURIDAD: INGRESO DE CUARTEL GENERAL ---
+# --- 2. SEGURIDAD: INGRESO DE CUARTEL GENERAL (CON ESCUDO) ---
 if 'cg' not in st.session_state:
     st.title("🦅 Sistema de Sincronización Animus")
     cg_input = st.text_input("Define la ubicación de tu Cuartel General:", value="Bella Suiza, Bogota")
     if st.button("Iniciar Sincronización de ADN"):
-        geoloc = Nominatim(user_agent="animus_v6_santiago")
-        loc = geoloc.geocode(cg_input)
-        if loc:
-            st.session_state.cg = {"nombre": cg_input, "lat": loc.latitude, "lon": loc.longitude}
-            st.rerun()
+        try:
+            # Le ponemos un nombre de agente único para que no nos bloqueen
+            geoloc = Nominatim(user_agent="animus_tactical_unit_santiago_27")
+            loc = geoloc.geocode(cg_input, timeout=10) # Más tiempo de espera
+            if loc:
+                st.session_state.cg = {"nombre": cg_input, "lat": loc.latitude, "lon": loc.longitude}
+                st.rerun()
+            else:
+                st.error("📍 El Animus no encontró esa ubicación. Intenta con algo más general.")
+        except Exception as e:
+            st.error("📡 Satélites ocupados. Espera 5 segundos y vuelve a intentar.")
     st.stop()
 
 # --- 3. BASE DE DATOS ---
