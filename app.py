@@ -16,7 +16,7 @@ model = None
 if "GEMINI_KEY" in st.secrets:
     try:
         genai.configure(api_key=st.secrets["GEMINI_KEY"])
-        model = genai.GenerativeModel('gemini-1.5-flash') # Usamos Flash que es más rápido
+       model = genai.GenerativeModel('gemini-pro') # Usamos Flash que es más rápido
     except Exception as e:
         st.error(f"Error configurando IA: {e}")
 else:
