@@ -7,7 +7,7 @@ import os
 from geopy.geocoders import Nominatim
 from deep_translator import GoogleTranslator
 
-# --- 1. CONFIGURACIÓN DE IA (MÁXIMA COMPATIBILIDAD) ---
+# --- 1. CONFIGURACIÓN DE IA (ESCANEO AUTOMÁTICO) ---
 st.set_page_config(page_title="Animus OS V6", layout="wide")
 
 model = None
@@ -15,13 +15,18 @@ model = None
 if "GEMINI_KEY" in st.secrets:
     try:
         genai.configure(api_key=st.secrets["GEMINI_KEY"])
-        # Intentamos con el nombre más nuevo, si falla, usamos el estándar
-        try:
-            model = genai.GenerativeModel('gemini-1.5-pro')
-        except:
-            model = genai.GenerativeModel('gemini-pro')
+        
+        # BUSCAMOS EL MODELO DISPONIBLE AUTOMÁTICAMENTE
+        modelos_disponibles = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        if modelos_disponibles:
+            # Elegimos el primero de la lista (normalmente gemini-pro o gemini-1.5-flash)
+            model_name = modelos_disponibles[0]
+            model = genai.GenerativeModel(model_name)
+            st.sidebar.success(f"🛰️ Enlace establecido con: {model_name}")
+        else:
+            st.error("❌ No se encontraron modelos disponibles en esta cuenta.")
             
-        st.sidebar.success("🛰️ Enlace con el satélite establecido")
     except Exception as e:
         st.error(f"Error crítico de hardware: {e}")
 else:
