@@ -4,4 +4,3 @@ streamlit-folium
 google-generativeai
 pandas
 geopy
-deep-translator
