@@ -33,7 +33,7 @@ if not os.path.exists(archivo_csv):
     pd.DataFrame(columns=["Nombre", "Pais", "Depto", "Lat", "Lon", "Info"]).to_csv(archivo_csv, index=False)
 df = pd.read_csv(archivo_csv)
 
-# --- 4. FUNCIÓN SHAUN HASTINGS (ANTI-BLOQUEO) ---
+# --- 4. FUNCIÓN SHAUN HASTINGS (BYPASS DE ABSTERGO) ---
 def obtener_reporte(ciudad, pais_nombre):
     if model:
         try:
@@ -41,23 +41,17 @@ def obtener_reporte(ciudad, pais_nombre):
                 f"Eres Shaun Hastings de Assassin's Creed. Dame un reporte táctico de {ciudad}, {pais_nombre}. "
                 "Responde SIEMPRE en ESPAÑOL. Sé cínico, sarcástico y muy inteligente. Máximo 280 caracteres."
             )
-            # Configuración para evitar que Google bloquee ciudades "sensibles"
-            seguridad = [
-                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
-            ]
             
-            response = model.generate_content(prompt, safety_settings=seguridad)
+            # Eliminamos los safety_settings que hacen crashear las llaves gratuitas
+            response = model.generate_content(prompt)
             
-            # Validación robusta de la respuesta
-            if response and response.candidates and response.candidates[0].content.parts:
-                return response.text
-            else:
-                return f"Nodo {ciudad} encriptado por Abstergo. No puedo darte datos ahora, hermano."
+            # Devolvemos el texto directamente
+            return response.text
+            
         except Exception as e:
-            return f"Error de transmisión: Shaun está ocupado con su té y el firewall."
+            # SI FALLA, MOSTRAREMOS EL ERROR EXACTO EN LA PANTALLA
+            return f"Error de Sistema: {str(e)}"
+            
     return "IA fuera de línea."
 
 # --- 5. PANEL LATERAL: SINCRONIZACIÓN (MOTOR GOOGLE MAPS) ---
