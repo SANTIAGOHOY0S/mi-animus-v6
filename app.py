@@ -7,18 +7,23 @@ import os
 from geopy.geocoders import Nominatim
 from deep_translator import GoogleTranslator
 
-# --- 1. CONFIGURACIÓN DE IA (GEMINI ACTUALIZADO) ---
+# --- 1. CONFIGURACIÓN DE IA (MÁXIMA COMPATIBILIDAD) ---
 st.set_page_config(page_title="Animus OS V6", layout="wide")
 
-# Inicializar modelo como None
 model = None
 
 if "GEMINI_KEY" in st.secrets:
     try:
         genai.configure(api_key=st.secrets["GEMINI_KEY"])
-        model = genai.GenerativeModel('gemini-pro') # <--- Mira que esté alineado con el de arriba
+        # Intentamos con el nombre más nuevo, si falla, usamos el estándar
+        try:
+            model = genai.GenerativeModel('gemini-1.5-pro')
+        except:
+            model = genai.GenerativeModel('gemini-pro')
+            
+        st.sidebar.success("🛰️ Enlace con el satélite establecido")
     except Exception as e:
-        st.error(f"Error configurando IA: {e}")
+        st.error(f"Error crítico de hardware: {e}")
 else:
     st.error("🔑 No se encontró la GEMINI_KEY en Secrets.")
 
