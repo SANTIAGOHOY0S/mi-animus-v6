@@ -15,11 +15,23 @@ model = None
 if "GEMINI_KEY" in st.secrets:
     try:
         genai.configure(api_key=st.secrets["GEMINI_KEY"])
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        st.sidebar.success("🛰️ Shaun (Gemini) en línea")
+        
+        # PROTOCOLO DE AUTO-DESCUBRIMIENTO:
+        # Escaneamos los motores compatibles en tu servidor de Google
+        modelos_disponibles = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        if modelos_disponibles:
+            # Forzamos el uso de gemini-pro si existe, si no, agarramos el primero que funcione
+            modelo_elegido = 'models/gemini-pro' if 'models/gemini-pro' in modelos_disponibles else modelos_disponibles[0]
+            
+            model = genai.GenerativeModel(modelo_elegido)
+            # Mostramos en pantalla qué modelo se logró conectar
+            st.sidebar.success(f"🛰️ Shaun en línea ({modelo_elegido.replace('models/', '')})")
+        else:
+            st.sidebar.error("Error: Tu API Key no tiene modelos de texto asignados.")
+            
     except Exception as e:
         st.sidebar.error(f"Error de enlace IA: {e}")
-
 # --- 2. CARGA DE GEODATOS (COLOMBIA) ---
 geojson_path = "colombia.json"
 geo_data = None
