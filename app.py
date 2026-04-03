@@ -7,8 +7,13 @@ import os
 import json
 import requests
 
-# --- 1. CONFIGURACIÓN DEL CEREBRO (GEMINI) ---
+# --- 1. CONFIGURACIÓN DEL CEREBRO (GEMINI & MEMORIA) ---
 st.set_page_config(page_title="Animus OS V6 - Santiago", layout="wide")
+
+# Memoria temporal para la "Transmisión Entrante" gigante
+if "ultima_transmision" not in st.session_state:
+    st.session_state.ultima_transmision = None
+    st.session_state.ultimo_nodo = None
 
 model = None
 if "GEMINI_KEY" in st.secrets:
@@ -35,11 +40,10 @@ if not os.path.exists(archivo_csv):
     pd.DataFrame(columns=["Nombre", "Pais", "Depto", "Lat", "Lon", "Info", "Tipo"]).to_csv(archivo_csv, index=False)
 df = pd.read_csv(archivo_csv)
 
-# Asegurar que la columna 'Tipo' exista en bases de datos viejas
 if "Tipo" not in df.columns:
     df["Tipo"] = "Nodo"
 
-# --- 4. FUNCIÓN SHAUN HASTINGS (SIN CENSURA NI LÍMITES) ---
+# --- 4. FUNCIÓN SHAUN HASTINGS ---
 def obtener_reporte(ciudad, pais_nombre):
     if model:
         try:
@@ -99,7 +103,6 @@ with st.sidebar.form("atalaya"):
                     
                     info_shaun = obtener_reporte(nombre, pais)
                     
-                    # Lógica para establecer el nuevo CG y degradar el anterior
                     if es_cg:
                         df.loc[df['Tipo'] == 'CG', 'Tipo'] = 'Nodo'
                         tipo_actual = "CG"
@@ -113,6 +116,11 @@ with st.sidebar.form("atalaya"):
                     
                     df = pd.concat([df, nueva_fila], ignore_index=True)
                     df.to_csv(archivo_csv, index=False)
+                    
+                    # Guardamos la transmisión en la memoria para el cuadro gigante
+                    st.session_state.ultima_transmision = info_shaun
+                    st.session_state.ultimo_nodo = f"{nombre.upper()} | {depto_auto}"
+                    
                     st.rerun()
                 else:
                     st.error(f"Error de GPS: {res['status']}")
@@ -121,14 +129,32 @@ with st.sidebar.form("atalaya"):
         else:
             st.error("🔑 MAPS_KEY no encontrada.")
 
-# --- 6. RENDERIZADO DEL ANÍMUS ---
+# --- 6. RENDERIZADO DEL TERMINAL Y EL MAPA ---
+
+# Si hay una transmisión nueva, mostramos el cuadro gigante
+if st.session_state.ultima_transmision:
+    st.markdown(f"""
+    <div style="background-color: #050505; border: 2px solid #00ff00; padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 0 15px #00ff0044;">
+        <h2 style="color: #00ff00; font-family: 'Courier New', monospace; margin-top: 0;">> ENLACE ESTABLECIDO: {st.session_state.ultimo_nodo}</h2>
+        <hr style="border-color: #333;">
+        <div style="color: #00ff00; font-family: 'Courier New', monospace; font-size: 16px; line-height: 1.6; white-space: pre-wrap;">
+{st.session_state.ultima_transmision}
+        </div>
+        <p style="color: #555; text-align: right; font-family: monospace; font-size: 12px; margin-top: 20px;">// FIN DE LA TRANSMISIÓN //</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Botón para cerrar el cuadro gigante
+    if st.button("❌ Cerrar Comunicación Táctica"):
+        st.session_state.ultima_transmision = None
+        st.rerun()
+
+# Renderizado del Mapa
 lat_c = df['Lat'].iloc[-1] if not df.empty else 4.703
 lon_c = df['Lon'].iloc[-1] if not df.empty else -74.030
 
-# Mapa en loop cilíndrico (tiles por defecto sin no_wrap)
 mapa = folium.Map(location=[lat_c, lon_c], zoom_start=5, min_zoom=2, tiles="CartoDB dark_matter")
 
-# Relleno automático de regiones (Colombia)
 if geo_data:
     conquistados = df[df['Pais'].str.lower() == 'colombia']['Depto'].unique().tolist()
     folium.GeoJson(
@@ -140,7 +166,6 @@ if geo_data:
         }
     ).add_to(mapa)
 
-# Pines Dinámicos (CG vs NODO) y Popups agrandados
 for _, f in df.iterrows():
     es_base = f['Tipo'] == 'CG'
     color_borde = "#00ff00" if es_base else "#ff4b4b"
@@ -148,18 +173,19 @@ for _, f in df.iterrows():
     icono = "home" if es_base else "crosshairs"
     titulo = f"> CUARTEL GENERAL: {f['Nombre'].upper()}" if es_base else f"> NODO: {f['Nombre'].upper()}"
     
+    # Popup corregido: Sin doble scrollbar (se quitó el overflow-y y el max-height del div interior)
     html = f"""
-    <div style="width: 350px; font-family: 'Courier New', monospace; color: #00ff00; background-color: #000; padding: 12px; border: 2px solid {color_borde}; border-radius: 5px;">
-        <b style="color: {color_borde};">{titulo} | {str(f.get('Depto', 'DESCONOCIDO')).upper()}</b><br>
+    <div style="width: 100%; font-family: 'Courier New', monospace; color: {color_borde}; background-color: #000; padding: 5px;">
+        <b style="color: {color_borde};">{titulo}</b><br>
         <hr style="border: 0.5px solid #333; margin: 8px 0;">
-        <div style="font-size: 12px; line-height: 1.4; text-align: justify; max-height: 300px; overflow-y: auto;">
+        <div style="font-size: 12px; line-height: 1.4; text-align: justify;">
             {f['Info']}
         </div>
     </div>
     """
     folium.Marker(
         [f['Lat'], f['Lon']], 
-        popup=folium.Popup(folium.IFrame(html, width=380, height=380), max_width=380), 
+        popup=folium.Popup(folium.IFrame(html, width=380, height=350), max_width=380), 
         icon=folium.Icon(color=color_icono, icon=icono, prefix="fa")
     ).add_to(mapa)
 
