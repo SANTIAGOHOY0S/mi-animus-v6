@@ -13,28 +13,49 @@ from gtts import gTTS
 # --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE BARRAS) ---
 st.set_page_config(page_title="Animus OS V6.3", layout="wide", initial_sidebar_state="expanded")
 
-# CSS AGRESIVO para forzar el fondo negro y ocultar la basura blanca de Streamlit
+# CSS AGRESIVO: Matamos cualquier residuo blanco de la interfaz original
 st.markdown("""
     <style>
+    /* Ocultar header, footer y botones de Streamlit */
     header, footer, #MainMenu {visibility: hidden !important;}
-    .stApp { background-color: #000000 !important; }
+    
+    /* Fondo negro absoluto para toda la aplicación */
+    .stApp { 
+        background-color: #000000 !important; 
+    }
+
+    /* ELIMINAR BARRAS BLANCAS: Quitamos el relleno del contenedor principal */
     .block-container {
-        padding: 0rem !important;
+        padding-top: 0rem !important;
+        padding-bottom: 0rem !important;
+        padding-left: 0rem !important;
+        padding-right: 0rem !important;
         max-width: 100% !important;
     }
-    .element-container, .stMarkdown { margin: 0 !important; padding: 0 !important; }
-    html, body { overflow: hidden !important; background-color: #000000 !important; }
+
+    /* Quitar espacios vacíos entre elementos (Markdown y otros) */
+    .element-container, .stMarkdown { 
+        margin: 0 !important; 
+        padding: 0 !important; 
+    }
+
+    /* Forzar que el mapa no genere scrollbars blancas laterales */
+    html, body { 
+        overflow: hidden !important; 
+        background-color: #000000 !important; 
+    }
+
+    /* Estilo del reporte de Shaun */
     .report-container { 
-        background-color: #050505; border: 2px solid #00ff00; 
-        padding: 20px; margin: 10px; border-radius: 8px; 
+        background-color: #050505; 
+        border: 2px solid #00ff00; 
+        padding: 20px; 
+        margin: 10px; 
+        border-radius: 8px; 
         font-family: 'Courier New', monospace;
     }
     </style>
 """, unsafe_allow_html=True)
-
-if "ultima_transmision" not in st.session_state:
-    st.session_state.ultima_transmision = None
-    st.session_state.ultimo_nodo = None
 
 # --- 2. CONFIGURACIÓN DE IA Y DATOS ---
 model = None
