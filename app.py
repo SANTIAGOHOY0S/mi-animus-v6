@@ -7,35 +7,36 @@ import os
 import json
 import requests
 
-# --- 1. CONFIGURACIÓN INICIAL ---
+# --- 1. CONFIGURACIÓN DEL CEREBRO (GEMINI) ---
 st.set_page_config(page_title="Animus OS V6 - Santiago", layout="wide")
 
 model = None
 if "GEMINI_KEY" in st.secrets:
     try:
         genai.configure(api_key=st.secrets["GEMINI_KEY"])
-        modelos_disponibles = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        if modelos_disponibles:
-            modelo_elegido = 'models/gemini-pro' if 'models/gemini-pro' in modelos_disponibles else modelos_disponibles[0]
+        # Protocolo de auto-descubrimiento de modelos
+        modelos = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        if modelos:
+            modelo_elegido = 'models/gemini-1.5-flash' if 'models/gemini-1.5-flash' in modelos else modelos[0]
             model = genai.GenerativeModel(modelo_elegido)
-            st.sidebar.success(f"🛰️ Shaun en línea ({modelo_elegido.replace('models/', '')})")
+            st.sidebar.success(f"🛰️ Shaun en línea ({modelo_elegido.split('/')[-1]})")
     except Exception as e:
         st.sidebar.error(f"Error de enlace IA: {e}")
 
-# --- 2. CARGA DE GEODATOS (COLOMBIA) ---
+# --- 2. CARGA DE GEODATOS (ESTRUCTURA TERRITORIAL) ---
 geojson_path = "colombia.json"
 geo_data = None
 if os.path.exists(geojson_path):
     with open(geojson_path, encoding='utf-8') as f:
         geo_data = json.load(f)
 
-# --- 3. BASE DE DATOS ---
+# --- 3. BASE DE DATOS DE CONQUISTAS ---
 archivo_csv = "animus_data.csv"
 if not os.path.exists(archivo_csv):
     pd.DataFrame(columns=["Nombre", "Pais", "Depto", "Lat", "Lon", "Info"]).to_csv(archivo_csv, index=False)
 df = pd.read_csv(archivo_csv)
 
-# --- 4. FUNCIÓN SHAUN HASTINGS ---
+# --- 4. FUNCIÓN SHAUN HASTINGS (PERSONA) ---
 def obtener_reporte(ciudad, pais_nombre):
     if model:
         try:
@@ -43,18 +44,22 @@ def obtener_reporte(ciudad, pais_nombre):
                 f"Eres Shaun Hastings de Assassin's Creed. Dame un reporte táctico de {ciudad}, {pais_nombre}. "
                 "Responde SIEMPRE en ESPAÑOL. Sé cínico, sarcástico y muy inteligente. Máximo 280 caracteres."
             )
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            return f"Error de Sistema: {str(e)}"
+            # Desactivamos filtros pesados para evitar el "té compulsivo"
+            seguridad = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            ]
+            response = model.generate_content(prompt, safety_settings=seguridad)
+            return response.text if response.text else "Nodo encriptado por Abstergo."
+        except:
+            return "Error de enlace. Shaun está ocupado con su té y el firewall."
     return "IA fuera de línea."
 
-# --- 5. PANEL LATERAL: SINCRONIZACIÓN AUTOMÁTICA ---
-st.sidebar.title("🦅 Sincronización Mundial")
+# --- 5. PANEL LATERAL: SINCRONIZACIÓN MUNDIAL ---
+st.sidebar.title("🦅 Centro de Mando")
 with st.sidebar.form("atalaya"):
-    nombre = st.text_input("Ciudad/Pueblo:")
+    nombre = st.text_input("Ciudad o Punto de Interés:")
     pais = st.text_input("País:", value="Colombia")
-    # ¡Casilla de departamento eliminada!
     
     if st.form_submit_button("Sincronizar Atalaya"):
         if "MAPS_KEY" in st.secrets:
@@ -64,54 +69,58 @@ with st.sidebar.form("atalaya"):
             try:
                 res = requests.get(url).json()
                 if res["status"] == "OK":
-                    # Coordenadas
+                    # Coordenadas de precisión Google
                     coords = res["results"][0]["geometry"]["location"]
                     lat, lon = coords["lat"], coords["lng"]
                     
-                    # --- AUTO-DETECCIÓN DE DEPARTAMENTO/ESTADO ---
+                    # --- AUTO-DETECCIÓN DE DEPARTAMENTO ---
                     depto_auto = "DESCONOCIDO"
-                    for componente in res["results"][0]["address_components"]:
-                        if "administrative_area_level_1" in componente["types"]:
-                            depto_auto = componente["long_name"].upper()
-                            # Limpiamos tildes para que coincida con colombia.json
+                    for comp in res["results"][0]["address_components"]:
+                        if "administrative_area_level_1" in comp["types"]:
+                            depto_auto = comp["long_name"].upper()
+                            # Normalizar para el JSON (Quitar tildes)
                             tildes = {"Á":"A", "É":"E", "Í":"I", "Ó":"O", "Ú":"U"}
-                            for acento, sin_acento in tildes.items():
-                                depto_auto = depto_auto.replace(acento, sin_acento)
-                            
-                            # Ajuste especial para Bogotá según el estándar del DANE/IGAC
-                            if "BOGOTA" in depto_auto or "CUNDINAMARCA" in depto_auto:
-                                if nombre.upper() in ["BOGOTA", "BOGOTÁ"]:
-                                    depto_auto = "SANTAFE DE BOGOTA D.C" 
+                            for a, sa in tildes.items(): depto_auto = depto_auto.replace(a, sa)
                             break
                     
-                    # Llamada a Shaun
+                    # Sincronización con Shaun
                     info_shaun = obtener_reporte(nombre, pais)
                     
-                    # Guardamos la info con el departamento automático
-                    nueva_fila = pd.DataFrame([{
-                        "Nombre": nombre, "Pais": pais, "Depto": depto_auto, 
-                        "Lat": lat, "Lon": lon, "Info": info_shaun
-                    }])
+                    # Actualizar DB
+                    nueva_fila = pd.DataFrame([{"Nombre": nombre, "Pais": pais, "Depto": depto_auto, "Lat": lat, "Lon": lon, "Info": info_shaun}])
                     df = pd.concat([df, nueva_fila], ignore_index=True)
                     df.to_csv(archivo_csv, index=False)
-                    st.success(f"Nodo {nombre} ({depto_auto}) sincronizado.")
                     st.rerun()
                 else:
-                    st.error(f"Google Maps Error: {res['status']}")
+                    st.error(f"Error de GPS: {res['status']}")
             except Exception as e:
-                st.error(f"Falla en el satélite: {e}")
+                st.error(f"Falla de satélite: {e}")
         else:
-            st.error("🔑 Falta MAPS_KEY en los Secrets.")
+            st.error("🔑 MAPS_KEY no encontrada.")
 
-# --- 6. RENDERIZADO DEL MAPA ---
-lat_c = df['Lat'].iloc[-1] if not df.empty else 4.5
-lon_c = df['Lon'].iloc[-1] if not df.empty else -74.2
+# --- 6. RENDERIZADO DEL ANÍMUS ---
+lat_c = df['Lat'].iloc[-1] if not df.empty else 4.703
+lon_c = df['Lon'].iloc[-1] if not df.empty else -74.030
 
-mapa = folium.Map(location=[lat_c, lon_c], zoom_start=5, tiles="CartoDB dark_matter")
+# Ajustes de mapa para evitar repetición (no_wrap)
+mapa = folium.Map(
+    location=[lat_c, lon_c], 
+    zoom_start=3, 
+    min_zoom=2,
+    tiles=None # Lo definimos abajo con no_wrap
+)
+folium.TileLayer('CartoDB dark_matter', no_wrap=True).add_to(mapa)
 
-# Pintar departamentos de Colombia automáticamente
+# --- CUARTEL GENERAL (BELLA SUIZA) ---
+folium.Marker(
+    [4.7030, -74.0300], 
+    popup="<b style='color: #00ff00; font-family: monospace;'>> CUARTEL GENERAL (CG)</b>",
+    icon=folium.Icon(color="green", icon="home", prefix="fa")
+).add_to(mapa)
+
+# Relleno automático de regiones (Solo si el JSON coincide con el Depto detectado)
 if geo_data:
-    conquistados = df['Depto'].unique().tolist()
+    conquistados = df[df['Pais'].str.lower() == 'colombia']['Depto'].unique().tolist()
     folium.GeoJson(
         geo_data,
         style_function=lambda f: {
@@ -121,19 +130,18 @@ if geo_data:
         }
     ).add_to(mapa)
 
+# Pines de Conquista
 for _, f in df.iterrows():
-    # Añadí el departamento/estado al título del popup para que veas qué detectó
     html = f"""
-    <div style="width: 330px; font-family: 'Courier New', Courier, monospace; color: #00ff00; background-color: #000; padding: 12px; border: 2px solid #ff4b4b; border-radius: 8px;">
-        <b style="color: #ff4b4b;">> NODO: {f['Nombre'].upper()} | {str(f['Depto']).upper()}</b><br>
-        <hr style="border: 0.5px solid #333; margin: 8px 0;">
-        <div style="font-size: 12px; line-height: 1.3; text-align: justify;">{f['Info']}</div>
-        <div style="font-size: 9px; color: #555; margin-top: 10px; text-align: right;">[HASTINGS_DB_V6]</div>
+    <div style="width: 320px; font-family: 'Courier New', monospace; color: #00ff00; background-color: #000; padding: 10px; border: 2px solid #ff4b4b; border-radius: 5px;">
+        <b style="color: #ff4b4b;">> NODO: {f['Nombre'].upper()}</b><br>
+        <hr style="border: 0.5px solid #333;">
+        <div style="font-size: 12px;">{f['Info']}</div>
     </div>
     """
     folium.Marker(
         [f['Lat'], f['Lon']], 
-        popup=folium.Popup(folium.IFrame(html, width=350, height=200), max_width=350), 
+        popup=folium.Popup(folium.IFrame(html, width=340, height=180), max_width=340), 
         icon=folium.Icon(color="red", icon="crosshairs", prefix="fa")
     ).add_to(mapa)
 
