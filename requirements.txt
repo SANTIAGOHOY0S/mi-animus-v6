@@ -4,3 +4,4 @@ streamlit-folium
 google-generativeai
 pandas
 geopy
+gTTS
