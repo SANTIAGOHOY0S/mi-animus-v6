@@ -10,43 +10,23 @@ import random
 import streamlit.components.v1 as components
 from gtts import gTTS
 
-# --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE MÁRGENES) ---
-st.set_page_config(page_title="Animus OS V6.2", layout="wide", initial_sidebar_state="expanded")
+# --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE BARRAS) ---
+st.set_page_config(page_title="Animus OS V6.3", layout="wide", initial_sidebar_state="expanded")
 
-# CSS Maestro con !important para anular cualquier estilo de Streamlit
+# CSS AGRESIVO para forzar el fondo negro y ocultar la basura blanca de Streamlit
 st.markdown("""
     <style>
-    /* Ocultar interfaz de Streamlit */
     header, footer, #MainMenu {visibility: hidden !important;}
-    
-    /* Fondo negro absoluto */
-    .stApp {
-        background-color: #000000 !important;
-    }
-    
-    /* Eliminar todos los paddings del contenedor principal */
+    .stApp { background-color: #000000 !important; }
     .block-container {
         padding: 0rem !important;
         max-width: 100% !important;
     }
-
-    /* Ajuste para que el mapa no genere barras de desplazamiento */
-    .element-container, .stMarkdown {
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-
-    html, body {
-        overflow: hidden !important;
-        background-color: #000000 !important;
-    }
-
+    .element-container, .stMarkdown { margin: 0 !important; padding: 0 !important; }
+    html, body { overflow: hidden !important; background-color: #000000 !important; }
     .report-container { 
-        background-color: #050505; 
-        border: 2px solid #00ff00; 
-        padding: 20px; 
-        margin: 10px;
-        border-radius: 8px; 
+        background-color: #050505; border: 2px solid #00ff00; 
+        padding: 20px; margin: 10px; border-radius: 8px; 
         font-family: 'Courier New', monospace;
     }
     </style>
@@ -56,7 +36,7 @@ if "ultima_transmision" not in st.session_state:
     st.session_state.ultima_transmision = None
     st.session_state.ultimo_nodo = None
 
-# --- 2. CONFIGURACIÓN DE IA ---
+# --- 2. CONFIGURACIÓN DE IA Y DATOS ---
 model = None
 if "GEMINI_KEY" in st.secrets:
     try:
@@ -76,43 +56,30 @@ def obtener_reporte(ciudad, pais_nombre, tipo_nodo):
             prompt = (
                 f"Actúa como Shaun Hastings de Assassin's Creed. Eres un historiador británico, cínico, arrogante y extremadamente sarcástico. "
                 f"Dame un reporte sobre {ciudad}, {pais_nombre} (tipo de nodo: {tipo_nodo}). "
-                "Responde en ESPAÑOL. Búrlate del lugar, menciona que la seguridad es una broma y que Abstergo tiene espías ahí. "
-                "Usa un tono de superioridad intelectual. Mínimo 2 párrafos cargados de sarcasmo."
+                "Responde en ESPAÑOL. Búrlate de la seguridad y menciona a Abstergo. "
+                "Mínimo 2 párrafos cargados de veneno británico."
             )
             response = model.generate_content(prompt)
-            return response.text if response.text else "Datos borrados por el satélite de Abstergo."
-        except Exception as e:
-            return f"Error en el servidor de Shaun: {str(e)}"
-    return "Shaun está fuera de línea."
+            return response.text if response.text else "Datos borrados por Abstergo."
+        except Exception as e: return f"Error: {str(e)}"
+    return "Shaun está offline."
 
-# --- 3. SIDEBAR Y MÚSICA ---
+# --- 3. SIDEBAR Y MÚSICA (SINTAXIS SEGURA) ---
 st.sidebar.title("🦅 Sincronización Táctica")
-
 tracks = ["C_n-EcznZpE", "d5F9X6qeXco", "NVsSrJJIzDM", "RwDQZI_NRHA", "nyQEQM0CEBQ", "NEpjh30DLas", "PDVnsHC3ypQ"]
-
 musica_html = """
 <div id="player"></div>
 <script>
-  var tag = document.createElement('script');
-  tag.src = "https://www.youtube.com/iframe_api";
-  var firstScriptTag = document.getElementsByTagName('script')[0];
-  firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-  var player;
-  var tracks = %s;
-  var last = "";
+  var tag = document.createElement('script'); tag.src = "https://www.youtube.com/iframe_api";
+  var firstScriptTag = document.getElementsByTagName('script')[0]; firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+  var player; var tracks = %s; var last = "";
   function onYouTubeIframeAPIReady() { play(); }
   function play() {
     var filtered = tracks.filter(t => t !== last);
-    var next = filtered[Math.floor(Math.random() * filtered.length)];
-    last = next;
-    if(!player) {
-      player = new YT.Player('player', {
-        height: '1', width: '1', videoId: next,
-        playerVars: { 'autoplay': 1, 'controls': 0 },
-        events: { 'onStateChange': (e) => { if(e.data == YT.PlayerState.ENDED) play(); } }
-      });
-    } else { player.loadVideoById(next); }
-  }
+    var next = filtered[Math.floor(Math.random() * filtered.length)]; last = next;
+    if(!player) { player = new YT.Player('player', { height: '1', width: '1', videoId: next, playerVars: { 'autoplay': 1, 'controls': 0 },
+            events: { 'onStateChange': (e) => { if(e.data == YT.PlayerState.ENDED) play(); } } });
+    } else { player.loadVideoById(next); } }
 </script>
 """ % (tracks)
 
@@ -125,7 +92,6 @@ with st.sidebar.form("atalaya"):
     pais = st.text_input("País:", value="Colombia")
     tipo = st.selectbox("Categoría:", ["Nodo Estándar", "Refugio (Amigos)", "Universidad", "Abandonado"])
     es_cg = st.checkbox("🛡️ Cuartel General")
-    
     if st.form_submit_button("Sincronizar"):
         if "MAPS_KEY" in st.secrets:
             url = f"https://maps.googleapis.com/maps/api/geocode/json?address={nombre},{pais}&key={st.secrets['MAPS_KEY']}&language=es"
@@ -133,10 +99,8 @@ with st.sidebar.form("atalaya"):
             if res["status"] == "OK":
                 coords = res["results"][0]["geometry"]["location"]
                 lat, lon = coords["lat"], coords["lng"]
-                
                 tipo_f = "CG" if es_cg else tipo
                 txt_shaun = obtener_reporte(nombre, pais, tipo_f)
-                
                 audio_clean = re.sub(r'[*_#]', '', txt_shaun)
                 try:
                     if "ELEVENLABS_KEY" in st.secrets:
@@ -145,19 +109,16 @@ with st.sidebar.form("atalaya"):
                         v_res = requests.post(url_ev, json={"text": audio_clean, "model_id": "eleven_multilingual_v2"}, headers=h)
                         if v_res.status_code == 200:
                             with open("shaun_voice.mp3", "wb") as f: f.write(v_res.content)
-                except: gTTS(text=audio_clean, lang='es').save("shaun_voice.mp3")
-
+                except: gTTS(text=audio_clean, lang='es', tld='es').save("shaun_voice.mp3")
                 if es_cg: df.loc[df['Tipo'] == 'CG', 'Tipo'] = 'Nodo Estándar'
-                
                 new_row = pd.DataFrame([{"Nombre": nombre, "Pais": pais, "Depto": "SINC", "Lat": lat, "Lon": lon, "Info": txt_shaun, "Tipo": tipo_f}])
                 df = pd.concat([df, new_row], ignore_index=True)
                 df.to_csv(archivo_csv, index=False)
-                
                 st.session_state.ultima_transmision = txt_shaun
                 st.session_state.ultimo_nodo = f"{nombre.upper()} [{tipo_f}]"
                 st.rerun()
 
-# --- 4. RENDERIZADO DEL MAPA ---
+# --- 4. RENDERIZADO DEL MAPA (BUCLE INFINITO ACTIVADO) ---
 if st.session_state.ultima_transmision:
     st.markdown(f'<div class="report-container"><h3>> TRANSMISIÓN: {st.session_state.ultimo_nodo}</h3><p>{st.session_state.ultima_transmision}</p></div>', unsafe_allow_html=True)
     if os.path.exists("shaun_voice.mp3"): st.audio("shaun_voice.mp3", format="audio/mp3", autoplay=True)
@@ -168,26 +129,24 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# MAPA RESTRINGIDO: Usamos TileLayer para controlar el 'no_wrap' a nivel de imagen
+# CONFIGURACIÓN DEL ANCESTRO: BUEN WRAPPING
 m = folium.Map(
     location=[l_lat, l_lon], 
-    zoom_start=13, 
-    tiles=None, # Quitamos el tile por defecto
-    world_copy_jump=False,
-    no_wrap=True
+    zoom_start=3, # Un poco más alejado para notar el bucle
+    tiles=None,
+    world_copy_jump=True, # <--- ESTO HACE EL EFECTO DE MAPS DE ANTAÑO
+    no_wrap=False         # <--- PERMITE QUE EL MAPA CARGUE EL SIGUIENTE '0'
 )
 
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    attr='&copy; CARTO',
     name="CartoDB Dark Matter",
-    no_wrap=True, # Evita que las baldosas se repitan lateralmente
-    control=False
+    no_wrap=False # Permite la continuidad de baldosas
 ).add_to(m)
 
 for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
     folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
 
-# Renderizado final: st_folium ocupa el espacio restante
 st_folium(m, width=2000, height=1000, returned_objects=[])
