@@ -10,13 +10,17 @@ import random
 import streamlit.components.v1 as components
 from gtts import gTTS
 
-# --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE BARRAS) ---
+# --- 1. CONFIGURACIÓN DE INTERFAZ (PURGA DE BARRAS Y ESCUDOS INVISIBLES) ---
 st.set_page_config(page_title="Animus OS V6.8", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
-    #MainMenu, footer {visibility: hidden !important;}
-    header {background-color: transparent !important;} 
+    /* Ocultamos menús por defecto */
+    #MainMenu, footer {display: none !important;}
+    
+    /* HACEMOS QUE LA BARRA SUPERIOR SEA TRASPASABLE PARA PODER HACER CLIC EN EL ZOOM */
+    header {background-color: transparent !important; pointer-events: none !important;} 
+    header * {pointer-events: auto !important;} /* Pero mantenemos clickeable el botón del menú lateral */
     
     .stApp { background-color: #000000 !important; }
     .block-container {
@@ -26,8 +30,9 @@ st.markdown("""
         padding-right: 0rem !important;
         max-width: 100% !important;
     }
-    .element-container, .stMarkdown { margin: 0 !important; padding: 0 !important; }
+    
     html, body { overflow: hidden !important; background-color: #000000 !important; }
+    
     .report-container { 
         background-color: #050505; border: 2px solid #00ff00; 
         padding: 20px; margin: 10px; border-radius: 8px; 
@@ -68,43 +73,41 @@ def obtener_reporte(ciudad, pais_nombre, tipo_nodo):
         except Exception as e: return f"Error: {str(e)}"
     return "Shaun está offline."
 
-# --- 3. SIDEBAR Y MÚSICA (1x1 PIXEL) ---
-st.sidebar.title("🦅 Sincronización Táctica")
+# --- 3. SIDEBAR Y RADIO ANIMUS VISIBLE ---
+st.sidebar.title("🦅 Sincronización")
+
 tracks = ["C_n-EcznZpE", "d5F9X6qeXco", "NVsSrJJIzDM", "RwDQZI_NRHA", "nyQEQM0CEBQ", "NEpjh30DLas", "PDVnsHC3ypQ"]
 
+# Ahora es un módulo de radio visible para evitar que el navegador bloquee el audio
 musica_html = """
-<div id="player"></div>
+<div style="background-color: #000; border: 1px solid #00ff00; padding: 5px; border-radius: 5px;">
+    <div style="color: #00ff00; font-family: monospace; text-align: center; margin-bottom: 5px; font-size: 12px;">> RADIO ANIMUS INACTIVA <br> [CLICK PARA REPRODUCIR]</div>
+    <div id="player"></div>
+</div>
 <script>
   var tag = document.createElement('script'); tag.src = "https://www.youtube.com/iframe_api";
   var firstScriptTag = document.getElementsByTagName('script')[0]; firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
   var player; var tracks = %s; var last = "";
   
-  function onYouTubeIframeAPIReady() { playNext(); }
+  function onYouTubeIframeAPIReady() { 
+      var next = tracks[Math.floor(Math.random() * tracks.length)]; last = next;
+      player = new YT.Player('player', { 
+          height: '100', width: '100%%', videoId: next, 
+          playerVars: { 'autoplay': 0, 'controls': 1, 'playsinline': 1 },
+          events: { 'onStateChange': (e) => { if(e.data == YT.PlayerState.ENDED) playNext(); } } 
+      });
+  }
   
   function playNext() {
       var filtered = tracks.filter(t => t !== last);
       var next = filtered[Math.floor(Math.random() * filtered.length)]; last = next;
-      
-      if(!player) { 
-          player = new YT.Player('player', { 
-              height: '1', width: '1', videoId: next, 
-              playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
-              events: { 
-                  'onReady': function(e) { e.target.playVideo(); },
-                  'onStateChange': (e) => { if(e.data == YT.PlayerState.ENDED) playNext(); } 
-              } 
-          });
-      } else { player.loadVideoById(next); } 
+      player.loadVideoById(next);
   }
-
-  document.addEventListener('click', function() {
-      if(player && typeof player.playVideo === 'function' && player.getPlayerState() !== 1) { player.playVideo(); }
-  }, {once:true});
 </script>
 """ % (tracks)
 
 with st.sidebar:
-    components.html(musica_html, height=1)
+    components.html(musica_html, height=150)
     st.markdown("---")
 
 with st.sidebar.form("atalaya"):
@@ -154,21 +157,17 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
+# LÍMITES FÍSICOS DUROS: La cámara chocará contra las coordenadas y rebotará
 m = folium.Map(
     location=[l_lat, l_lon], 
-    zoom_start=5, 
-    min_zoom=5,           # <--- AJUSTE MECÁNICO: Bloquea el alejamiento excesivo
-    max_bounds=True,      
-    min_lat=-90,          
-    max_lat=90,           
-    min_lon=-180,         
-    max_lon=180,          
+    zoom_start=4, 
+    min_zoom=4,           # Límite del scroll del mouse
+    maxBounds=[[-90, -180], [90, 180]], # Muro de coordenadas exacto de la Tierra
+    maxBoundsViscosity=1.0,             # Hace que el muro sea rígido (no puedes arrastrar fuera de él)
     tiles=None,
     world_copy_jump=True, 
     no_wrap=False         
 )
-
-m.get_root().html.add_child(folium.Element("<style>.leaflet-container { background: #000000 !important; }</style>"))
 
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
@@ -181,4 +180,5 @@ for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
     folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
 
-st_folium(m, width="100%", height=800, returned_objects=[])
+# usamos use_container_width para que se adapte perfecto al Streamlit
+st_folium(m, use_container_width=True, height=800, returned_objects=[])
