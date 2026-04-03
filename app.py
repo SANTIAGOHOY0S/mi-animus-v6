@@ -194,26 +194,29 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# MAPA BASE: Permite el loop en X, pero la capa de baldosas tiene un tope natural
+# MAPA BASE: Permite el loop en X infinito, bloqueado en Y con max_bounds
 m = folium.Map(
     location=[l_lat, l_lon], 
     zoom_start=4, 
     min_zoom=3,           
     tiles=None,
-    world_copy_jump=True, # Mantiene el efecto "Google Maps" en el eje X
-    no_wrap=False         
+    world_copy_jump=True,
+    max_bounds=True,      
+    min_lat=-90,          
+    max_lat=90,           
+    min_lon=-100000,      
+    max_lon=100000        
 )
 
 # FONDO NEGRO: Evita ver el gris de desincronización si te sales del eje Y
 m.get_root().html.add_child(folium.Element("<style>.leaflet-container { background: #000000 !important; }</style>"))
 
-# CAPA DE BALDOSAS CON LIMITES ESTRICTOS (Evita que el mapa intente cargar más allá de los polos)
+# CAPA DE BALDOSAS CON LOOP INIFINITO EN X
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
     attr='&copy; CARTO',
     name="CartoDB Dark Matter",
-    no_wrap=False,
-    bounds=[[-90, -180], [90, 180]] # <--- EL TOPE EN Y: No dibuja baldosas más allá de la Tierra
+    no_wrap=False
 ).add_to(m)
 
 for _, f in df.iterrows():
