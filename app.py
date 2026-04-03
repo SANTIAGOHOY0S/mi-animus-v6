@@ -4,7 +4,6 @@ from streamlit_folium import st_folium
 import google.generativeai as genai
 import pandas as pd
 import os
-import json
 import requests
 
 # --- 1. CONFIGURACIÓN DEL CEREBRO (GEMINI & MEMORIA) ---
@@ -27,14 +26,7 @@ if "GEMINI_KEY" in st.secrets:
     except Exception as e:
         st.sidebar.error(f"Error de enlace IA: {e}")
 
-# --- 2. CARGA DE GEODATOS (COLOMBIA) ---
-geojson_path = "colombia.json"
-geo_data = None
-if os.path.exists(geojson_path):
-    with open(geojson_path, encoding='utf-8') as f:
-        geo_data = json.load(f)
-
-# --- 3. BASE DE DATOS DE CONQUISTAS ---
+# --- 2. BASE DE DATOS DE CONQUISTAS ---
 archivo_csv = "animus_data.csv"
 if not os.path.exists(archivo_csv):
     pd.DataFrame(columns=["Nombre", "Pais", "Depto", "Lat", "Lon", "Info", "Tipo"]).to_csv(archivo_csv, index=False)
@@ -43,7 +35,7 @@ df = pd.read_csv(archivo_csv)
 if "Tipo" not in df.columns:
     df["Tipo"] = "Nodo"
 
-# --- 4. FUNCIÓN SHAUN HASTINGS ---
+# --- 3. FUNCIÓN SHAUN HASTINGS ---
 def obtener_reporte(ciudad, pais_nombre):
     if model:
         try:
@@ -68,7 +60,7 @@ def obtener_reporte(ciudad, pais_nombre):
             return f"Error de Sistema: {str(e)}"
     return "IA fuera de línea."
 
-# --- 5. PANEL LATERAL: SINCRONIZACIÓN MUNDIAL ---
+# --- 4. PANEL LATERAL: SINCRONIZACIÓN MUNDIAL ---
 st.sidebar.title("🦅 Centro de Mando")
 with st.sidebar.form("atalaya"):
     nombre = st.text_input("Ciudad, Barrio o Punto de Interés:")
@@ -129,7 +121,7 @@ with st.sidebar.form("atalaya"):
         else:
             st.error("🔑 MAPS_KEY no encontrada.")
 
-# --- 6. RENDERIZADO DEL TERMINAL Y EL MAPA ---
+# --- 5. RENDERIZADO DEL TERMINAL Y EL MAPA ---
 
 # Si hay una transmisión nueva, mostramos el cuadro gigante
 if st.session_state.ultima_transmision:
@@ -155,17 +147,6 @@ lon_c = df['Lon'].iloc[-1] if not df.empty else -74.030
 
 mapa = folium.Map(location=[lat_c, lon_c], zoom_start=5, min_zoom=2, tiles="CartoDB dark_matter")
 
-if geo_data:
-    conquistados = df[df['Pais'].str.lower() == 'colombia']['Depto'].unique().tolist()
-    folium.GeoJson(
-        geo_data,
-        style_function=lambda f: {
-            'fillColor': '#ff4b4b' if str(f['properties'].get('DPTO', '')).upper() in conquistados else 'transparent',
-            'color': '#444', 'weight': 1,
-            'fillOpacity': 0.35 if str(f['properties'].get('DPTO', '')).upper() in conquistados else 0,
-        }
-    ).add_to(mapa)
-
 for _, f in df.iterrows():
     es_base = f['Tipo'] == 'CG'
     color_borde = "#00ff00" if es_base else "#ff4b4b"
@@ -173,7 +154,7 @@ for _, f in df.iterrows():
     icono = "home" if es_base else "crosshairs"
     titulo = f"> CUARTEL GENERAL: {f['Nombre'].upper()}" if es_base else f"> NODO: {f['Nombre'].upper()}"
     
-    # Popup corregido: Sin doble scrollbar (se quitó el overflow-y y el max-height del div interior)
+    # Popup corregido: Sin doble scrollbar
     html = f"""
     <div style="width: 100%; font-family: 'Courier New', monospace; color: {color_borde}; background-color: #000; padding: 5px;">
         <b style="color: {color_borde};">{titulo}</b><br>
