@@ -11,9 +11,8 @@ import streamlit.components.v1 as components
 from gtts import gTTS
 
 # --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE BARRAS) ---
-st.set_page_config(page_title="Animus OS V6.7", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Animus OS V6.8", layout="wide", initial_sidebar_state="expanded")
 
-# CSS AGRESIVO: Mantenemos el header transparente para no perder el botón de la barra lateral
 st.markdown("""
     <style>
     #MainMenu, footer {visibility: hidden !important;}
@@ -98,7 +97,6 @@ musica_html = """
       } else { player.loadVideoById(next); } 
   }
 
-  // Activa el audio al interactuar con cualquier elemento de la página
   document.addEventListener('click', function() {
       if(player && typeof player.playVideo === 'function' && player.getPlayerState() !== 1) { player.playVideo(); }
   }, {once:true});
@@ -156,20 +154,21 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# CONFIGURACIÓN DEL ANCESTRO: BLOQUEO ESTRICTO DE CÁMARA
 m = folium.Map(
     location=[l_lat, l_lon], 
     zoom_start=5, 
-    min_zoom=4,           # Límite matemático para no ver el vacío
-    max_bounds=True,      # Bloquea el desplazamiento fuera de los límites
-    min_lat=-90,          # Polo Sur
-    max_lat=90,           # Polo Norte
-    min_lon=-180,         # Borde Oeste
-    max_lon=180,          # Borde Este
+    min_zoom=5,           # <--- AJUSTE MECÁNICO: Bloquea el alejamiento excesivo
+    max_bounds=True,      
+    min_lat=-90,          
+    max_lat=90,           
+    min_lon=-180,         
+    max_lon=180,          
     tiles=None,
     world_copy_jump=True, 
     no_wrap=False         
 )
+
+m.get_root().html.add_child(folium.Element("<style>.leaflet-container { background: #000000 !important; }</style>"))
 
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
