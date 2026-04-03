@@ -5,9 +5,17 @@ import google.generativeai as genai
 import pandas as pd
 import os
 import requests
+import streamlit.components.v1 as components
 
-# --- 1. CONFIGURACIÓN DEL CEREBRO (GEMINI) ---
+# --- 1. CONFIGURACIÓN DEL CEREBRO (GEMINI & CSS) ---
 st.set_page_config(page_title="Animus OS V6 - Santiago", layout="wide")
+
+# Parche CSS para eliminar las molestas líneas blancas de los "tiles" del mapa
+st.markdown("""
+    <style>
+    .leaflet-tile { border: solid transparent 1px !important; }
+    </style>
+""", unsafe_allow_html=True)
 
 if "ultima_transmision" not in st.session_state:
     st.session_state.ultima_transmision = None
@@ -21,7 +29,6 @@ if "GEMINI_KEY" in st.secrets:
         if modelos:
             modelo_elegido = 'models/gemini-1.5-flash' if 'models/gemini-1.5-flash' in modelos else modelos[0]
             model = genai.GenerativeModel(modelo_elegido)
-            st.sidebar.success(f"🛰️ Shaun en línea")
     except Exception as e:
         st.sidebar.error(f"Error de enlace IA: {e}")
 
@@ -47,13 +54,27 @@ def obtener_reporte(ciudad, pais_nombre, tipo_nodo):
         except: return "Error de enlace."
     return "IA fuera de línea."
 
-# --- 4. PANEL LATERAL: CENTRO DE MANDO ---
+# --- 4. PANEL LATERAL: CENTRO DE MANDO Y MÚSICA ---
 st.sidebar.title("🦅 Sincronización Táctica")
+
+# --- MÓDULO DE MÚSICA DEL ANIMUS ---
+st.sidebar.markdown("### 🎵 Frecuencia del Animus")
+# Reproductor oculto pero con controles, en loop
+youtube_html = """
+<iframe width="100%" height="80" 
+src="https://www.youtube.com/embed/dQjRTP6ANkw?autoplay=1&loop=1&playlist=dQjRTP6ANkw&controls=1" 
+title="YouTube video player" frameborder="0" 
+allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+allowfullscreen></iframe>
+"""
+components.html(youtube_html, height=85)
+st.sidebar.caption("▶️ Dale Play para iniciar la sincronización neuronal.")
+st.sidebar.markdown("---")
+
 with st.sidebar.form("atalaya"):
     nombre = st.text_input("Nombre del Punto (Barrio, U, Refugio...):")
     pais = st.text_input("País:", value="Colombia")
     
-    # Selector de Tipo de Nodo
     tipo_nodo = st.selectbox("Categoría del Nodo:", 
                              ["Nodo Estándar", "Refugio (Amigos)", "Universidad", "Abandonado"])
     
@@ -66,7 +87,6 @@ with st.sidebar.form("atalaya"):
     if st.form_submit_button("Sincronizar Atalaya"):
         lat, lon = None, None
         
-        # Lógica de Coordenadas: ¿Manual o Automática?
         if lat_manual and lon_manual:
             try:
                 lat, lon = float(lat_manual), float(lon_manual)
@@ -81,7 +101,6 @@ with st.sidebar.form("atalaya"):
             else: st.error("No se encontró la ubicación.")
 
         if lat and lon:
-            # Sincronización con Shaun
             tipo_final = "CG" if es_cg else tipo_nodo
             info_shaun = obtener_reporte(nombre, pais, tipo_final)
             
@@ -106,7 +125,16 @@ if st.session_state.ultima_transmision:
         st.rerun()
 
 lat_ini = df['Lat'].iloc[-1] if not df.empty else 4.703
-mapa = folium.Map(location=[lat_ini, df['Lon'].iloc[-1] if not df.empty else -74.030], zoom_start=13, tiles="CartoDB dark_matter")
+lon_ini = df['Lon'].iloc[-1] if not df.empty else -74.030
+
+# CONFIGURACIÓN DEL MAPA CILÍNDRICO PERFECTO
+mapa = folium.Map(
+    location=[lat_ini, lon_ini], 
+    zoom_start=3,     # Nivel de vista global
+    min_zoom=3,       # Evita que te alejes y veas "múltiples tierras"
+    max_bounds=True,  # Bloquea el scroll hacia arriba/abajo del mundo
+    tiles="CartoDB dark_matter"
+)
 
 # Lógica de Iconos por Categoría
 for _, f in df.iterrows():
