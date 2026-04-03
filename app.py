@@ -11,7 +11,7 @@ import streamlit.components.v1 as components
 from gtts import gTTS
 
 # --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE BARRAS) ---
-st.set_page_config(page_title="Animus OS V6.3", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Animus OS V6.6", layout="wide", initial_sidebar_state="expanded")
 
 # CSS AGRESIVO para forzar el fondo negro y ocultar la basura blanca
 st.markdown("""
@@ -67,29 +67,50 @@ def obtener_reporte(ciudad, pais_nombre, tipo_nodo):
         except Exception as e: return f"Error: {str(e)}"
     return "Shaun está offline."
 
-# --- 3. SIDEBAR Y MÚSICA (SINTAXIS SEGURA) ---
+# --- 3. SIDEBAR Y MÚSICA (CON ANTI-BLOQUEO DE NAVEGADOR) ---
 st.sidebar.title("🦅 Sincronización Táctica")
 tracks = ["C_n-EcznZpE", "d5F9X6qeXco", "NVsSrJJIzDM", "RwDQZI_NRHA", "nyQEQM0CEBQ", "NEpjh30DLas", "PDVnsHC3ypQ"]
 
-# Añadimos el atributo de autoplay permitido para burlar el bloqueo del navegador
+# JavaScript mejorado: El evento 'click' obliga al navegador a permitir el audio
 musica_html = """
 <div id="player"></div>
 <script>
   var tag = document.createElement('script'); tag.src = "https://www.youtube.com/iframe_api";
   var firstScriptTag = document.getElementsByTagName('script')[0]; firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
   var player; var tracks = %s; var last = "";
-  function onYouTubeIframeAPIReady() { play(); }
-  function play() {
-    var filtered = tracks.filter(t => t !== last);
-    var next = filtered[Math.floor(Math.random() * filtered.length)]; last = next;
-    if(!player) { player = new YT.Player('player', { height: '2', width: '2', videoId: next, playerVars: { 'autoplay': 1, 'controls': 0 },
-            events: { 'onStateChange': (e) => { if(e.data == YT.PlayerState.ENDED) play(); } } });
-    } else { player.loadVideoById(next); } }
+  
+  function onYouTubeIframeAPIReady() { 
+      playNext(); 
+  }
+  
+  function playNext() {
+      var filtered = tracks.filter(t => t !== last);
+      var next = filtered[Math.floor(Math.random() * filtered.length)]; last = next;
+      
+      if(!player) { 
+          player = new YT.Player('player', { 
+              height: '2', width: '2', videoId: next, 
+              playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
+              events: { 
+                  'onReady': function(e) { e.target.playVideo(); },
+                  'onStateChange': (e) => { if(e.data == YT.PlayerState.ENDED) playNext(); } 
+              } 
+          });
+      } else { 
+          player.loadVideoById(next); 
+      } 
+  }
+
+  // Burlar la seguridad del navegador: Forzar el play al primer clic del usuario
+  document.addEventListener('click', function() {
+      if(player && typeof player.playVideo === 'function' && player.getPlayerState() !== 1) { 
+          player.playVideo(); 
+      }
+  }, {once:true});
 </script>
 """ % (tracks)
 
 with st.sidebar:
-    # Aumentamos mínimamente el height para que el navegador no mate el script
     components.html(musica_html, height=2)
     st.markdown("---")
 
@@ -112,7 +133,6 @@ with st.sidebar.form("atalaya"):
                     if "ELEVENLABS_KEY" in st.secrets:
                         url_ev = f"https://api.elevenlabs.io/v1/text-to-speech/{st.secrets['VOICE_ID']}"
                         h = {"xi-api-key": st.secrets["ELEVENLABS_KEY"]}
-                        # INYECCIÓN DE LA PERSONALIDAD DE VOZ (Estabilidad baja)
                         data_voz = {
                             "text": audio_clean, 
                             "model_id": "eleven_multilingual_v2",
@@ -130,7 +150,7 @@ with st.sidebar.form("atalaya"):
                 st.session_state.ultimo_nodo = f"{nombre.upper()} [{tipo_f}]"
                 st.rerun()
 
-# --- 4. RENDERIZADO DEL MAPA (BUCLE INFINITO ACTIVADO) ---
+# --- 4. RENDERIZADO DEL MAPA ---
 if st.session_state.ultima_transmision:
     st.markdown(f'<div class="report-container"><h3>> TRANSMISIÓN: {st.session_state.ultimo_nodo}</h3><p>{st.session_state.ultima_transmision}</p></div>', unsafe_allow_html=True)
     if os.path.exists("shaun_voice.mp3"): st.audio("shaun_voice.mp3", format="audio/mp3", autoplay=True)
@@ -141,11 +161,12 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# CONFIGURACIÓN DEL ANCESTRO: WRAPPING ACTIVO Y ZOOM RESTRINGIDO
+# CONFIGURACIÓN DEL ANCESTRO: LÍMITES FÍSICOS ESTABLECIDOS
 m = folium.Map(
     location=[l_lat, l_lon], 
-    zoom_start=3, 
-    min_zoom=3,           # <--- BLOQUEO ANTI-BARRAS BLANCAS Y DESINCRONIZACIÓN
+    zoom_start=4, 
+    min_zoom=3,
+    max_bounds=True,      # <--- BLOQUEA EL DESPLAZAMIENTO FUERA DEL MAPA
     tiles=None,
     world_copy_jump=True, 
     no_wrap=False         
@@ -162,4 +183,5 @@ for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
     folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
 
-st_folium(m, width=2500, height=1200, returned_objects=[])
+# LA "Y" REDUCIDA A 800 PARA NO SOBREPASAR EL MAPA
+st_folium(m, width="100%", height=800, returned_objects=[])
