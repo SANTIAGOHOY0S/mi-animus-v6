@@ -10,21 +10,21 @@ import random
 import streamlit.components.v1 as components
 from gtts import gTTS
 
-# --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE BARRAS) ---
-st.set_page_config(page_title="Animus OS V6.3", layout="wide", initial_sidebar_state="expanded")
+# --- 1. CONFIGURACIÓN DE INTERFAZ (PURGA TOTAL DE BARRAS BLANCAS) ---
+st.set_page_config(page_title="Animus OS V6.4", layout="wide", initial_sidebar_state="expanded")
 
-# CSS AGRESIVO: Matamos cualquier residuo blanco de la interfaz original
+# CSS AGRESIVO: Forzamos el negro absoluto y eliminamos cualquier margen de Streamlit
 st.markdown("""
     <style>
-    /* Ocultar header, footer y botones de Streamlit */
+    /* Ocultar interfaz de Streamlit (Header, Footer, Menú) */
     header, footer, #MainMenu {visibility: hidden !important;}
     
-    /* Fondo negro absoluto para toda la aplicación */
+    /* Fondo negro total para la aplicación */
     .stApp { 
         background-color: #000000 !important; 
     }
 
-    /* ELIMINAR BARRAS BLANCAS: Quitamos el relleno del contenedor principal */
+    /* Eliminar el espacio blanco superior y laterales */
     .block-container {
         padding-top: 0rem !important;
         padding-bottom: 0rem !important;
@@ -33,19 +33,19 @@ st.markdown("""
         max-width: 100% !important;
     }
 
-    /* Quitar espacios vacíos entre elementos (Markdown y otros) */
+    /* Quitar espacios entre elementos de Markdown */
     .element-container, .stMarkdown { 
         margin: 0 !important; 
         padding: 0 !important; 
     }
 
-    /* Forzar que el mapa no genere scrollbars blancas laterales */
+    /* Evitar barras de desplazamiento blancas laterales */
     html, body { 
         overflow: hidden !important; 
         background-color: #000000 !important; 
     }
 
-    /* Estilo del reporte de Shaun */
+    /* Estilo del reporte táctico de Shaun */
     .report-container { 
         background-color: #050505; 
         border: 2px solid #00ff00; 
@@ -53,11 +53,16 @@ st.markdown("""
         margin: 10px; 
         border-radius: 8px; 
         font-family: 'Courier New', monospace;
+        color: #00ff00;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. CONFIGURACIÓN DE IA Y DATOS ---
+if "ultima_transmision" not in st.session_state:
+    st.session_state.ultima_transmision = None
+    st.session_state.ultimo_nodo = None
+
+# --- 2. CONFIGURACIÓN DE IA (PERSONALIDAD DE SHAUN) ---
 model = None
 if "GEMINI_KEY" in st.secrets:
     try:
@@ -75,17 +80,17 @@ def obtener_reporte(ciudad, pais_nombre, tipo_nodo):
     if model:
         try:
             prompt = (
-                f"Actúa como Shaun Hastings de Assassin's Creed. Eres un historiador británico, cínico, arrogante y extremadamente sarcástico. "
+                f"Actúa como Shaun Hastings de Assassin's Creed. Eres un historiador británico, cínico y arrogante. "
                 f"Dame un reporte sobre {ciudad}, {pais_nombre} (tipo de nodo: {tipo_nodo}). "
-                "Responde en ESPAÑOL. Búrlate de la seguridad y menciona a Abstergo. "
-                "Mínimo 2 párrafos cargados de veneno británico."
+                "Responde en ESPAÑOL. Sé extremadamente sarcástico, búrlate de la seguridad local y menciona a Abstergo. "
+                "Mínimo 2 párrafos de puro veneno británico."
             )
             response = model.generate_content(prompt)
             return response.text if response.text else "Datos borrados por Abstergo."
         except Exception as e: return f"Error: {str(e)}"
     return "Shaun está offline."
 
-# --- 3. SIDEBAR Y MÚSICA (SINTAXIS SEGURA) ---
+# --- 3. SIDEBAR Y MÚSICA (ALEATORIA SIN REPETICIÓN) ---
 st.sidebar.title("🦅 Sincronización Táctica")
 tracks = ["C_n-EcznZpE", "d5F9X6qeXco", "NVsSrJJIzDM", "RwDQZI_NRHA", "nyQEQM0CEBQ", "NEpjh30DLas", "PDVnsHC3ypQ"]
 musica_html = """
@@ -122,15 +127,23 @@ with st.sidebar.form("atalaya"):
                 lat, lon = coords["lat"], coords["lng"]
                 tipo_f = "CG" if es_cg else tipo
                 txt_shaun = obtener_reporte(nombre, pais, tipo_f)
+                
+                # --- VOZ DE ELEVENLABS (SHAUN 2.0) ---
                 audio_clean = re.sub(r'[*_#]', '', txt_shaun)
                 try:
-                    if "ELEVENLABS_KEY" in st.secrets:
+                    if "ELEVENLABS_KEY" in st.secrets and "VOICE_ID" in st.secrets:
                         url_ev = f"https://api.elevenlabs.io/v1/text-to-speech/{st.secrets['VOICE_ID']}"
                         h = {"xi-api-key": st.secrets["ELEVENLABS_KEY"]}
-                        v_res = requests.post(url_ev, json={"text": audio_clean, "model_id": "eleven_multilingual_v2"}, headers=h)
+                        data = {
+                            "text": audio_clean,
+                            "model_id": "eleven_multilingual_v2",
+                            "voice_settings": {"stability": 0.45, "similarity_boost": 0.85}
+                        }
+                        v_res = requests.post(url_ev, json=data, headers=h)
                         if v_res.status_code == 200:
                             with open("shaun_voice.mp3", "wb") as f: f.write(v_res.content)
                 except: gTTS(text=audio_clean, lang='es', tld='es').save("shaun_voice.mp3")
+                
                 if es_cg: df.loc[df['Tipo'] == 'CG', 'Tipo'] = 'Nodo Estándar'
                 new_row = pd.DataFrame([{"Nombre": nombre, "Pais": pais, "Depto": "SINC", "Lat": lat, "Lon": lon, "Info": txt_shaun, "Tipo": tipo_f}])
                 df = pd.concat([df, new_row], ignore_index=True)
@@ -139,7 +152,7 @@ with st.sidebar.form("atalaya"):
                 st.session_state.ultimo_nodo = f"{nombre.upper()} [{tipo_f}]"
                 st.rerun()
 
-# --- 4. RENDERIZADO DEL MAPA (BUCLE INFINITO ACTIVADO) ---
+# --- 4. RENDERIZADO DEL MAPA (CON WRAPPING INFINITO) ---
 if st.session_state.ultima_transmision:
     st.markdown(f'<div class="report-container"><h3>> TRANSMISIÓN: {st.session_state.ultimo_nodo}</h3><p>{st.session_state.ultima_transmision}</p></div>', unsafe_allow_html=True)
     if os.path.exists("shaun_voice.mp3"): st.audio("shaun_voice.mp3", format="audio/mp3", autoplay=True)
@@ -150,24 +163,25 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# CONFIGURACIÓN DEL ANCESTRO: BUEN WRAPPING
+# Configuración del mapa: Google Maps Style (Wrapping)
 m = folium.Map(
     location=[l_lat, l_lon], 
-    zoom_start=3, # Un poco más alejado para notar el bucle
+    zoom_start=3, 
     tiles=None,
-    world_copy_jump=True, # <--- ESTO HACE EL EFECTO DE MAPS DE ANTAÑO
-    no_wrap=False         # <--- PERMITE QUE EL MAPA CARGUE EL SIGUIENTE '0'
+    world_copy_jump=True, 
+    no_wrap=False
 )
 
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
     attr='&copy; CARTO',
     name="CartoDB Dark Matter",
-    no_wrap=False # Permite la continuidad de baldosas
+    no_wrap=False
 ).add_to(m)
 
 for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
     folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
 
-st_folium(m, width=2000, height=1000, returned_objects=[])
+# Forzamos que st_folium ocupe el máximo espacio posible
+st_folium(m, width=2500, height=1200, returned_objects=[])
