@@ -10,33 +10,34 @@ import random
 import streamlit.components.v1 as components
 from gtts import gTTS
 
-# --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN DE BARRAS Y MAPA INFINITO) ---
+# --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE MÁRGENES) ---
 st.set_page_config(page_title="Animus OS V6.2", layout="wide", initial_sidebar_state="expanded")
 
-# CSS AGRESIVO: Forzamos el ocultamiento de la interfaz de Streamlit
+# CSS Maestro con !important para anular cualquier estilo de Streamlit
 st.markdown("""
     <style>
-    /* Ocultar header, footer y menús de Streamlit con prioridad máxima */
+    /* Ocultar interfaz de Streamlit */
     header, footer, #MainMenu {visibility: hidden !important;}
     
-    /* Eliminar espacios en blanco superiores y laterales */
+    /* Fondo negro absoluto */
     .stApp {
         background-color: #000000 !important;
-        color: #00ff00 !important;
     }
     
-    /* Forzar que el contenido ocupe TODA la pantalla sin márgenes */
+    /* Eliminar todos los paddings del contenedor principal */
     .block-container {
-        padding-top: 0rem !important;
-        padding-bottom: 0rem !important;
-        padding-left: 0rem !important;
-        padding-right: 0rem !important;
+        padding: 0rem !important;
         max-width: 100% !important;
     }
 
-    /* Evitar el scroll horizontal que causa las barras blancas laterales */
+    /* Ajuste para que el mapa no genere barras de desplazamiento */
+    .element-container, .stMarkdown {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
     html, body {
-        overflow-x: hidden !important;
+        overflow: hidden !important;
         background-color: #000000 !important;
     }
 
@@ -167,18 +168,26 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# Configuración del mapa blindada
+# MAPA RESTRINGIDO: Usamos TileLayer para controlar el 'no_wrap' a nivel de imagen
 m = folium.Map(
     location=[l_lat, l_lon], 
     zoom_start=13, 
-    tiles="CartoDB dark_matter",
-    no_wrap=True, # Bloquea la repetición lateral
-    world_copy_jump=False
+    tiles=None, # Quitamos el tile por defecto
+    world_copy_jump=False,
+    no_wrap=True
 )
+
+folium.TileLayer(
+    tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    name="CartoDB Dark Matter",
+    no_wrap=True, # Evita que las baldosas se repitan lateralmente
+    control=False
+).add_to(m)
 
 for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
     folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
 
-# Renderizado final con parámetros de retorno vacíos para optimizar
-st_folium(m, width="100%", height=800, returned_objects=[])
+# Renderizado final: st_folium ocupa el espacio restante
+st_folium(m, width=2000, height=1000, returned_objects=[])
