@@ -98,6 +98,7 @@ musica_html = """
       } else { player.loadVideoById(next); } 
   }
 
+  // Activa el audio al interactuar con cualquier elemento de la página
   document.addEventListener('click', function() {
       if(player && typeof player.playVideo === 'function' && player.getPlayerState() !== 1) { player.playVideo(); }
   }, {once:true});
@@ -155,17 +156,20 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
+# CONFIGURACIÓN DEL ANCESTRO: BLOQUEO ESTRICTO DE CÁMARA
 m = folium.Map(
     location=[l_lat, l_lon], 
-    zoom_start=4, 
-    min_zoom=3,
+    zoom_start=5, 
+    min_zoom=4,           # Límite matemático para no ver el vacío
+    max_bounds=True,      # Bloquea el desplazamiento fuera de los límites
+    min_lat=-90,          # Polo Sur
+    max_lat=90,           # Polo Norte
+    min_lon=-180,         # Borde Oeste
+    max_lon=180,          # Borde Este
     tiles=None,
     world_copy_jump=True, 
     no_wrap=False         
 )
-
-# PARCHE QUIRÚRGICO: Pinta el "vacío" de Folium de color negro para que jamás veas blanco
-m.get_root().html.add_child(folium.Element("<style>.leaflet-container { background: #000000 !important; }</style>"))
 
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
