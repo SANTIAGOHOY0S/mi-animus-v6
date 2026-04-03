@@ -36,23 +36,29 @@ if not os.path.exists(archivo_csv):
     pd.DataFrame(columns=["Nombre", "Pais", "Depto", "Lat", "Lon", "Info"]).to_csv(archivo_csv, index=False)
 df = pd.read_csv(archivo_csv)
 
-# --- 4. FUNCIÓN SHAUN HASTINGS (PERSONA) ---
+# --- 4. FUNCIÓN SHAUN HASTINGS (REPROGRAMACIÓN DE PERSONALIDAD) ---
 def obtener_reporte(ciudad, pais_nombre):
     if model:
         try:
             prompt = (
-                f"Eres Shaun Hastings de Assassin's Creed. Dame un reporte táctico de {ciudad}, {pais_nombre}. "
-                "Responde SIEMPRE en ESPAÑOL. Sé cínico, sarcástico y muy inteligente. Máximo 280 caracteres."
+                f"Actúa como Shaun Hastings (Assassin's Creed). "
+                f"Dame un reporte táctico de {ciudad}, {pais_nombre}. "
+                "REGLAS OBLIGATORIAS: "
+                "1. Responde SIEMPRE en ESPAÑOL. "
+                "2. Sé extremadamente cínico, británico y sarcástico. "
+                "3. INCLUYE al menos un chiste de cultura popular o menciona a los Templarios, Abstergo o a los nazis. "
+                "4. DA UNA RECOMENDACIÓN TURÍSTICA sarcástica (ej: 'visita X si quieres morir de aburrimiento'). "
+                "5. Máximo 350 caracteres."
             )
-            # Desactivamos filtros pesados para evitar el "té compulsivo"
+            # Desactivamos filtros pesados para evitar que Google censure a Shaun
             seguridad = [
                 {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
                 {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
             ]
             response = model.generate_content(prompt, safety_settings=seguridad)
             return response.text if response.text else "Nodo encriptado por Abstergo."
-        except:
-            return "Error de enlace. Shaun está ocupado con su té y el firewall."
+        except Exception as e:
+            return f"Error de Sistema: {str(e)}"
     return "IA fuera de línea."
 
 # --- 5. PANEL LATERAL: SINCRONIZACIÓN MUNDIAL ---
@@ -73,20 +79,34 @@ with st.sidebar.form("atalaya"):
                     coords = res["results"][0]["geometry"]["location"]
                     lat, lon = coords["lat"], coords["lng"]
                     
-                    # --- AUTO-DETECCIÓN DE DEPARTAMENTO ---
+                    # --- AUTO-DETECCIÓN DE DEPARTAMENTO (CON FILTRO DE INGENIERO) ---
                     depto_auto = "DESCONOCIDO"
                     for comp in res["results"][0]["address_components"]:
                         if "administrative_area_level_1" in comp["types"]:
                             depto_auto = comp["long_name"].upper()
-                            # Normalizar para el JSON (Quitar tildes)
+                            
+                            # 1. Filtro de basura de Google
+                            palabras_basura = [" DEPARTMENT", " DEPARTAMENTO", " PROVINCE", " STATE", " DISTRITO CAPITAL", " D.C."]
+                            for palabra in palabras_basura:
+                                depto_auto = depto_auto.replace(palabra, "")
+                                
+                            # 2. Quitar tildes para el match perfecto con el JSON
                             tildes = {"Á":"A", "É":"E", "Í":"I", "Ó":"O", "Ú":"U"}
-                            for a, sa in tildes.items(): depto_auto = depto_auto.replace(a, sa)
+                            for a, sa in tildes.items(): 
+                                depto_auto = depto_auto.replace(a, sa)
+                            
+                            # 3. Calibración manual estricta para Bogotá
+                            if "BOGOTA" in depto_auto or "CUNDINAMARCA" in depto_auto:
+                                if nombre.upper() in ["BOGOTA", "BOGOTÁ"]:
+                                    depto_auto = "SANTAFE DE BOGOTA D.C" 
+                            
+                            depto_auto = depto_auto.strip()
                             break
                     
                     # Sincronización con Shaun
                     info_shaun = obtener_reporte(nombre, pais)
                     
-                    # Actualizar DB
+                    # Actualizar Base de Datos temporal
                     nueva_fila = pd.DataFrame([{"Nombre": nombre, "Pais": pais, "Depto": depto_auto, "Lat": lat, "Lon": lon, "Info": info_shaun}])
                     df = pd.concat([df, nueva_fila], ignore_index=True)
                     df.to_csv(archivo_csv, index=False)
@@ -102,12 +122,12 @@ with st.sidebar.form("atalaya"):
 lat_c = df['Lat'].iloc[-1] if not df.empty else 4.703
 lon_c = df['Lon'].iloc[-1] if not df.empty else -74.030
 
-# Ajustes de mapa para evitar repetición (no_wrap)
+# Ajustes de mapa para evitar repetición (no_wrap) y limitar el alejamiento
 mapa = folium.Map(
     location=[lat_c, lon_c], 
-    zoom_start=3, 
+    zoom_start=4, 
     min_zoom=2,
-    tiles=None # Lo definimos abajo con no_wrap
+    tiles=None
 )
 folium.TileLayer('CartoDB dark_matter', no_wrap=True).add_to(mapa)
 
@@ -118,7 +138,7 @@ folium.Marker(
     icon=folium.Icon(color="green", icon="home", prefix="fa")
 ).add_to(mapa)
 
-# Relleno automático de regiones (Solo si el JSON coincide con el Depto detectado)
+# Relleno automático de regiones (Colombia)
 if geo_data:
     conquistados = df[df['Pais'].str.lower() == 'colombia']['Depto'].unique().tolist()
     folium.GeoJson(
@@ -133,15 +153,15 @@ if geo_data:
 # Pines de Conquista
 for _, f in df.iterrows():
     html = f"""
-    <div style="width: 320px; font-family: 'Courier New', monospace; color: #00ff00; background-color: #000; padding: 10px; border: 2px solid #ff4b4b; border-radius: 5px;">
-        <b style="color: #ff4b4b;">> NODO: {f['Nombre'].upper()}</b><br>
-        <hr style="border: 0.5px solid #333;">
-        <div style="font-size: 12px;">{f['Info']}</div>
+    <div style="width: 330px; font-family: 'Courier New', monospace; color: #00ff00; background-color: #000; padding: 12px; border: 2px solid #ff4b4b; border-radius: 5px;">
+        <b style="color: #ff4b4b;">> NODO: {f['Nombre'].upper()} | {str(f['Depto']).upper()}</b><br>
+        <hr style="border: 0.5px solid #333; margin: 8px 0;">
+        <div style="font-size: 12px; line-height: 1.3; text-align: justify;">{f['Info']}</div>
     </div>
     """
     folium.Marker(
         [f['Lat'], f['Lon']], 
-        popup=folium.Popup(folium.IFrame(html, width=340, height=180), max_width=340), 
+        popup=folium.Popup(folium.IFrame(html, width=350, height=210), max_width=350), 
         icon=folium.Icon(color="red", icon="crosshairs", prefix="fa")
     ).add_to(mapa)
 
