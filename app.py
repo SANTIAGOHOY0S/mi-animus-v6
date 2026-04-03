@@ -74,4 +74,93 @@ with st.sidebar.form("atalaya"):
     if st.form_submit_button("Sincronizar Atalaya"):
         if "MAPS_KEY" in st.secrets:
             api_key = st.secrets["MAPS_KEY"]
-            url =
+            url = f"https://maps.googleapis.com/maps/api/geocode/json?address={nombre},{pais}&key={api_key}&language=es"
+            
+            try:
+                res = requests.get(url).json()
+                if res["status"] == "OK":
+                    coords = res["results"][0]["geometry"]["location"]
+                    lat, lon = coords["lat"], coords["lng"]
+                    
+                    depto_auto = "DESCONOCIDO"
+                    for comp in res["results"][0]["address_components"]:
+                        if "administrative_area_level_1" in comp["types"]:
+                            depto_auto = comp["long_name"].upper()
+                            palabras_basura = [" DEPARTMENT", " DEPARTAMENTO", " PROVINCE", " STATE", " DISTRITO CAPITAL", " D.C."]
+                            for palabra in palabras_basura: depto_auto = depto_auto.replace(palabra, "")
+                            tildes = {"Á":"A", "É":"E", "Í":"I", "Ó":"O", "Ú":"U"}
+                            for a, sa in tildes.items(): depto_auto = depto_auto.replace(a, sa)
+                            
+                            if "BOGOTA" in depto_auto or "CUNDINAMARCA" in depto_auto:
+                                if nombre.upper() in ["BOGOTA", "BOGOTÁ"] or "BOGOTA" in url.upper():
+                                    depto_auto = "SANTAFE DE BOGOTA D.C" 
+                            depto_auto = depto_auto.strip()
+                            break
+                    
+                    info_shaun = obtener_reporte(nombre, pais)
+                    
+                    # Lógica para establecer el nuevo CG y degradar el anterior
+                    if es_cg:
+                        df.loc[df['Tipo'] == 'CG', 'Tipo'] = 'Nodo'
+                        tipo_actual = "CG"
+                    else:
+                        tipo_actual = "Nodo"
+                        
+                    nueva_fila = pd.DataFrame([{
+                        "Nombre": nombre, "Pais": pais, "Depto": depto_auto, 
+                        "Lat": lat, "Lon": lon, "Info": info_shaun, "Tipo": tipo_actual
+                    }])
+                    
+                    df = pd.concat([df, nueva_fila], ignore_index=True)
+                    df.to_csv(archivo_csv, index=False)
+                    st.rerun()
+                else:
+                    st.error(f"Error de GPS: {res['status']}")
+            except Exception as e:
+                st.error(f"Falla de satélite: {e}")
+        else:
+            st.error("🔑 MAPS_KEY no encontrada.")
+
+# --- 6. RENDERIZADO DEL ANÍMUS ---
+lat_c = df['Lat'].iloc[-1] if not df.empty else 4.703
+lon_c = df['Lon'].iloc[-1] if not df.empty else -74.030
+
+# Mapa en loop cilíndrico (tiles por defecto sin no_wrap)
+mapa = folium.Map(location=[lat_c, lon_c], zoom_start=5, min_zoom=2, tiles="CartoDB dark_matter")
+
+# Relleno automático de regiones (Colombia)
+if geo_data:
+    conquistados = df[df['Pais'].str.lower() == 'colombia']['Depto'].unique().tolist()
+    folium.GeoJson(
+        geo_data,
+        style_function=lambda f: {
+            'fillColor': '#ff4b4b' if str(f['properties'].get('DPTO', '')).upper() in conquistados else 'transparent',
+            'color': '#444', 'weight': 1,
+            'fillOpacity': 0.35 if str(f['properties'].get('DPTO', '')).upper() in conquistados else 0,
+        }
+    ).add_to(mapa)
+
+# Pines Dinámicos (CG vs NODO) y Popups agrandados
+for _, f in df.iterrows():
+    es_base = f['Tipo'] == 'CG'
+    color_borde = "#00ff00" if es_base else "#ff4b4b"
+    color_icono = "green" if es_base else "red"
+    icono = "home" if es_base else "crosshairs"
+    titulo = f"> CUARTEL GENERAL: {f['Nombre'].upper()}" if es_base else f"> NODO: {f['Nombre'].upper()}"
+    
+    html = f"""
+    <div style="width: 350px; font-family: 'Courier New', monospace; color: #00ff00; background-color: #000; padding: 12px; border: 2px solid {color_borde}; border-radius: 5px;">
+        <b style="color: {color_borde};">{titulo} | {str(f.get('Depto', 'DESCONOCIDO')).upper()}</b><br>
+        <hr style="border: 0.5px solid #333; margin: 8px 0;">
+        <div style="font-size: 12px; line-height: 1.4; text-align: justify; max-height: 300px; overflow-y: auto;">
+            {f['Info']}
+        </div>
+    </div>
+    """
+    folium.Marker(
+        [f['Lat'], f['Lon']], 
+        popup=folium.Popup(folium.IFrame(html, width=380, height=380), max_width=380), 
+        icon=folium.Icon(color=color_icono, icon=icono, prefix="fa")
+    ).add_to(mapa)
+
+st_folium(mapa, width="100%", height=700)
