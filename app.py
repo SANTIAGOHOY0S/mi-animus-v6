@@ -10,17 +10,15 @@ import random
 import streamlit.components.v1 as components
 from gtts import gTTS
 
-# --- 1. CONFIGURACIÓN DE INTERFAZ (PURGA DE BARRAS Y ESCUDOS INVISIBLES) ---
-st.set_page_config(page_title="Animus OS V6.8", layout="wide", initial_sidebar_state="expanded")
+# --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE BARRAS) ---
+st.set_page_config(page_title="Animus OS V6.9", layout="wide", initial_sidebar_state="expanded")
 
+# CSS AGRESIVO: Mantenemos el header transparente para no perder el botón de la barra lateral
 st.markdown("""
     <style>
-    /* Ocultamos menús por defecto */
-    #MainMenu, footer {display: none !important;}
-    
-    /* HACEMOS QUE LA BARRA SUPERIOR SEA TRASPASABLE PARA PODER HACER CLIC EN EL ZOOM */
+    #MainMenu, footer {visibility: hidden !important;}
     header {background-color: transparent !important; pointer-events: none !important;} 
-    header * {pointer-events: auto !important;} /* Pero mantenemos clickeable el botón del menú lateral */
+    header * {pointer-events: auto !important;}
     
     .stApp { background-color: #000000 !important; }
     .block-container {
@@ -30,9 +28,8 @@ st.markdown("""
         padding-right: 0rem !important;
         max-width: 100% !important;
     }
-    
+    .element-container, .stMarkdown { margin: 0 !important; padding: 0 !important; }
     html, body { overflow: hidden !important; background-color: #000000 !important; }
-    
     .report-container { 
         background-color: #050505; border: 2px solid #00ff00; 
         padding: 20px; margin: 10px; border-radius: 8px; 
@@ -73,41 +70,81 @@ def obtener_reporte(ciudad, pais_nombre, tipo_nodo):
         except Exception as e: return f"Error: {str(e)}"
     return "Shaun está offline."
 
-# --- 3. SIDEBAR Y RADIO ANIMUS VISIBLE ---
-st.sidebar.title("🦅 Sincronización")
+# --- 3. SIDEBAR Y MÚSICA (RADIO OCULTA A PRUEBA DE BLOQUEOS) ---
+st.sidebar.title("🦅 Sincronización Táctica")
 
 tracks = ["C_n-EcznZpE", "d5F9X6qeXco", "NVsSrJJIzDM", "RwDQZI_NRHA", "nyQEQM0CEBQ", "NEpjh30DLas", "PDVnsHC3ypQ"]
 
-# Ahora es un módulo de radio visible para evitar que el navegador bloquee el audio
+# Interfaz HTML/JS: Un botón estético que activa el reproductor 1x1
 musica_html = """
-<div style="background-color: #000; border: 1px solid #00ff00; padding: 5px; border-radius: 5px;">
-    <div style="color: #00ff00; font-family: monospace; text-align: center; margin-bottom: 5px; font-size: 12px;">> RADIO ANIMUS INACTIVA <br> [CLICK PARA REPRODUCIR]</div>
-    <div id="player"></div>
+<div style="background-color: #050505; border: 1px solid #00ff00; padding: 10px; border-radius: 5px; text-align: center;">
+    <button id="playBtn" style="background-color: #00ff00; color: #000; border: none; padding: 10px 20px; font-family: monospace; font-weight: bold; cursor: pointer; border-radius: 3px;">
+        ▶ INICIAR FRECUENCIA ANIMUS
+    </button>
+    <div id="status" style="color: #00ff00; font-family: monospace; font-size: 10px; margin-top: 5px;">ESTADO: OFFLINE</div>
+    <div id="player" style="position: absolute; top: -9999px; left: -9999px;"></div> 
 </div>
+
 <script>
-  var tag = document.createElement('script'); tag.src = "https://www.youtube.com/iframe_api";
-  var firstScriptTag = document.getElementsByTagName('script')[0]; firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-  var player; var tracks = %s; var last = "";
+  var tag = document.createElement('script'); 
+  tag.src = "https://www.youtube.com/iframe_api";
+  var firstScriptTag = document.getElementsByTagName('script')[0]; 
+  firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
   
-  function onYouTubeIframeAPIReady() { 
-      var next = tracks[Math.floor(Math.random() * tracks.length)]; last = next;
+  var player; 
+  var tracks = %s; 
+  var last = "";
+  var isPlaying = false;
+  
+  function onYouTubeIframeAPIReady() {
+      document.getElementById('status').innerText = "ESTADO: LISTO PARA SINCRONIZAR";
+  }
+  
+  function initPlayer() {
+      var next = tracks[Math.floor(Math.random() * tracks.length)]; 
+      last = next;
+      
       player = new YT.Player('player', { 
-          height: '100', width: '100%%', videoId: next, 
-          playerVars: { 'autoplay': 0, 'controls': 1, 'playsinline': 1 },
-          events: { 'onStateChange': (e) => { if(e.data == YT.PlayerState.ENDED) playNext(); } } 
+          height: '1', width: '1', videoId: next, 
+          playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
+          events: { 
+              'onReady': function(e) { 
+                  e.target.playVideo(); 
+                  document.getElementById('status').innerText = "ESTADO: TRANSMITIENDO";
+                  document.getElementById('playBtn').style.display = 'none';
+              },
+              'onStateChange': (e) => { 
+                  if(e.data == YT.PlayerState.ENDED) playNext(); 
+              },
+              'onError': function(e) {
+                 console.log("Error de YouTube", e);
+                 playNext();
+              }
+          } 
       });
   }
   
   function playNext() {
       var filtered = tracks.filter(t => t !== last);
-      var next = filtered[Math.floor(Math.random() * filtered.length)]; last = next;
-      player.loadVideoById(next);
+      var next = filtered[Math.floor(Math.random() * filtered.length)]; 
+      last = next;
+      if (player && typeof player.loadVideoById === 'function') {
+          player.loadVideoById(next);
+      }
   }
+
+  document.getElementById('playBtn').addEventListener('click', function() {
+      if(!isPlaying) {
+          document.getElementById('status').innerText = "ESTADO: CONECTANDO...";
+          initPlayer();
+          isPlaying = true;
+      }
+  });
 </script>
 """ % (tracks)
 
 with st.sidebar:
-    components.html(musica_html, height=150)
+    components.html(musica_html, height=100) # Contenedor visible solo para el botón
     st.markdown("---")
 
 with st.sidebar.form("atalaya"):
@@ -146,7 +183,7 @@ with st.sidebar.form("atalaya"):
                 st.session_state.ultimo_nodo = f"{nombre.upper()} [{tipo_f}]"
                 st.rerun()
 
-# --- 4. RENDERIZADO DEL MAPA ---
+# --- 4. RENDERIZADO DEL MAPA (CONFINAMIENTO MATEMÁTICO) ---
 if st.session_state.ultima_transmision:
     st.markdown(f'<div class="report-container"><h3>> TRANSMISIÓN: {st.session_state.ultimo_nodo}</h3><p>{st.session_state.ultima_transmision}</p></div>', unsafe_allow_html=True)
     if os.path.exists("shaun_voice.mp3"): st.audio("shaun_voice.mp3", format="audio/mp3", autoplay=True)
@@ -157,28 +194,30 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# LÍMITES FÍSICOS DUROS: La cámara chocará contra las coordenadas y rebotará
+# MAPA BASE: Permite el loop en X, pero la capa de baldosas tiene un tope natural
 m = folium.Map(
     location=[l_lat, l_lon], 
     zoom_start=4, 
-    min_zoom=4,           # Límite del scroll del mouse
-    maxBounds=[[-90, -180], [90, 180]], # Muro de coordenadas exacto de la Tierra
-    maxBoundsViscosity=1.0,             # Hace que el muro sea rígido (no puedes arrastrar fuera de él)
+    min_zoom=3,           
     tiles=None,
-    world_copy_jump=True, 
+    world_copy_jump=True, # Mantiene el efecto "Google Maps" en el eje X
     no_wrap=False         
 )
 
+# FONDO NEGRO: Evita ver el gris de desincronización si te sales del eje Y
+m.get_root().html.add_child(folium.Element("<style>.leaflet-container { background: #000000 !important; }</style>"))
+
+# CAPA DE BALDOSAS CON LIMITES ESTRICTOS (Evita que el mapa intente cargar más allá de los polos)
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
     attr='&copy; CARTO',
     name="CartoDB Dark Matter",
-    no_wrap=False 
+    no_wrap=False,
+    bounds=[[-90, -180], [90, 180]] # <--- EL TOPE EN Y: No dibuja baldosas más allá de la Tierra
 ).add_to(m)
 
 for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
     folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
 
-# usamos use_container_width para que se adapte perfecto al Streamlit
 st_folium(m, use_container_width=True, height=800, returned_objects=[])
