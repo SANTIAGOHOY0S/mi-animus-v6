@@ -6,21 +6,36 @@ import pandas as pd
 import os
 import requests
 import re
+import random
 import streamlit.components.v1 as components
 from gtts import gTTS
 
-# --- 1. CONFIGURACIÓN DE INTERFAZ ---
-st.set_page_config(page_title="Animus OS V6.2 - Estabilizado", layout="wide")
+# --- 1. CONFIGURACIÓN DE INTERFAZ (SOLUCIÓN A BARRAS BLANCAS) ---
+st.set_page_config(page_title="Animus OS V6.2", layout="wide", initial_sidebar_state="expanded")
 
-# CSS para evitar el "Mapa de Marte" (Fondo negro y bordes limpios)
 st.markdown("""
     <style>
-    .stApp { background-color: #000000; color: #00ff00; }
-    iframe { border: none !important; }
+    /* Ocultar elementos de la interfaz de Streamlit que causan barras blancas */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Forzar fondo negro y eliminar espacios extra */
+    .stApp {
+        background-color: #000000;
+        color: #00ff00;
+    }
+    .block-container {
+        padding: 0rem !important;
+        max-width: 100%;
+    }
+    
+    /* Contenedor del reporte de Shaun */
     .report-container { 
         background-color: #050505; 
         border: 2px solid #00ff00; 
         padding: 20px; 
+        margin: 10px;
         border-radius: 8px; 
         font-family: 'Courier New', monospace;
     }
@@ -40,7 +55,6 @@ if "GEMINI_KEY" in st.secrets:
     except Exception as e:
         st.sidebar.error(f"Error de enlace IA: {e}")
 
-# Base de datos
 archivo_csv = "animus_data.csv"
 if not os.path.exists(archivo_csv):
     pd.DataFrame(columns=["Nombre", "Pais", "Depto", "Lat", "Lon", "Info", "Tipo"]).to_csv(archivo_csv, index=False)
@@ -49,7 +63,6 @@ df = pd.read_csv(archivo_csv)
 def obtener_reporte(ciudad, pais_nombre, tipo_nodo):
     if model:
         try:
-            # Prompt reforzado para que no se le olvide quién es
             prompt = (
                 f"Actúa como Shaun Hastings de Assassin's Creed. Eres un historiador británico, cínico, arrogante y extremadamente sarcástico. "
                 f"Dame un reporte sobre {ciudad}, {pais_nombre} (tipo de nodo: {tipo_nodo}). "
@@ -62,12 +75,11 @@ def obtener_reporte(ciudad, pais_nombre, tipo_nodo):
             return f"Error en el servidor de Shaun: {str(e)}"
     return "Shaun está fuera de línea."
 
-# --- 3. SIDEBAR Y MÚSICA (SINTAXIS SEGURA) ---
+# --- 3. SIDEBAR Y MÚSICA ---
 st.sidebar.title("🦅 Sincronización Táctica")
 
 tracks = ["C_n-EcznZpE", "d5F9X6qeXco", "NVsSrJJIzDM", "RwDQZI_NRHA", "nyQEQM0CEBQ", "NEpjh30DLas", "PDVnsHC3ypQ"]
 
-# Evitamos f-strings aquí para no romper el mapa
 musica_html = """
 <div id="player"></div>
 <script>
@@ -115,7 +127,6 @@ with st.sidebar.form("atalaya"):
                 tipo_f = "CG" if es_cg else tipo
                 txt_shaun = obtener_reporte(nombre, pais, tipo_f)
                 
-                # Audio (ElevenLabs con fallback)
                 audio_clean = re.sub(r'[*_#]', '', txt_shaun)
                 try:
                     if "ELEVENLABS_KEY" in st.secrets:
@@ -126,7 +137,6 @@ with st.sidebar.form("atalaya"):
                             with open("shaun_voice.mp3", "wb") as f: f.write(v_res.content)
                 except: gTTS(text=audio_clean, lang='es').save("shaun_voice.mp3")
 
-                # Lógica de CG único
                 if es_cg: df.loc[df['Tipo'] == 'CG', 'Tipo'] = 'Nodo Estándar'
                 
                 new_row = pd.DataFrame([{"Nombre": nombre, "Pais": pais, "Depto": "SINC", "Lat": lat, "Lon": lon, "Info": txt_shaun, "Tipo": tipo_f}])
@@ -137,7 +147,7 @@ with st.sidebar.form("atalaya"):
                 st.session_state.ultimo_nodo = f"{nombre.upper()} [{tipo_f}]"
                 st.rerun()
 
-# --- 4. RENDERIZADO DEL MAPA ---
+# --- 4. RENDERIZADO DEL MAPA (SOLUCIÓN AL MAPA INFINITO) ---
 if st.session_state.ultima_transmision:
     st.markdown(f'<div class="report-container"><h3>> TRANSMISIÓN: {st.session_state.ultimo_nodo}</h3><p>{st.session_state.ultima_transmision}</p></div>', unsafe_allow_html=True)
     if os.path.exists("shaun_voice.mp3"): st.audio("shaun_voice.mp3", format="audio/mp3", autoplay=True)
@@ -145,13 +155,21 @@ if st.session_state.ultima_transmision:
         st.session_state.ultima_transmision = None
         st.rerun()
 
-# Lógica del mapa a prueba de fallos
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-m = folium.Map(location=[l_lat, l_lon], zoom_start=13, tiles="CartoDB dark_matter")
+# Configuración del mapa para que no se multiplique lateralmente
+m = folium.Map(
+    location=[l_lat, l_lon], 
+    zoom_start=13, 
+    tiles="CartoDB dark_matter",
+    no_wrap=True, # Evita la repetición del mapa a los lados
+    world_copy_jump=False
+)
+
 for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
     folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
 
-st_folium(m, width="100%", height=600)
+# Renderizado con ancho total y sin objetos de retorno innecesarios
+st_folium(m, width="100%", height=700, returned_objects=[])
