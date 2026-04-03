@@ -11,12 +11,14 @@ import streamlit.components.v1 as components
 from gtts import gTTS
 
 # --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN TOTAL DE BARRAS) ---
-st.set_page_config(page_title="Animus OS V6.6", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Animus OS V6.7", layout="wide", initial_sidebar_state="expanded")
 
-# CSS AGRESIVO para forzar el fondo negro y ocultar la basura blanca
+# CSS AGRESIVO: Mantenemos el header transparente para no perder el botón de la barra lateral
 st.markdown("""
     <style>
-    header, footer, #MainMenu {visibility: hidden !important;}
+    #MainMenu, footer {visibility: hidden !important;}
+    header {background-color: transparent !important;} 
+    
     .stApp { background-color: #000000 !important; }
     .block-container {
         padding-top: 0rem !important;
@@ -67,11 +69,10 @@ def obtener_reporte(ciudad, pais_nombre, tipo_nodo):
         except Exception as e: return f"Error: {str(e)}"
     return "Shaun está offline."
 
-# --- 3. SIDEBAR Y MÚSICA (CON ANTI-BLOQUEO DE NAVEGADOR) ---
+# --- 3. SIDEBAR Y MÚSICA (1x1 PIXEL) ---
 st.sidebar.title("🦅 Sincronización Táctica")
 tracks = ["C_n-EcznZpE", "d5F9X6qeXco", "NVsSrJJIzDM", "RwDQZI_NRHA", "nyQEQM0CEBQ", "NEpjh30DLas", "PDVnsHC3ypQ"]
 
-# JavaScript mejorado: El evento 'click' obliga al navegador a permitir el audio
 musica_html = """
 <div id="player"></div>
 <script>
@@ -79,9 +80,7 @@ musica_html = """
   var firstScriptTag = document.getElementsByTagName('script')[0]; firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
   var player; var tracks = %s; var last = "";
   
-  function onYouTubeIframeAPIReady() { 
-      playNext(); 
-  }
+  function onYouTubeIframeAPIReady() { playNext(); }
   
   function playNext() {
       var filtered = tracks.filter(t => t !== last);
@@ -89,29 +88,24 @@ musica_html = """
       
       if(!player) { 
           player = new YT.Player('player', { 
-              height: '2', width: '2', videoId: next, 
+              height: '1', width: '1', videoId: next, 
               playerVars: { 'autoplay': 1, 'controls': 0, 'playsinline': 1 },
               events: { 
                   'onReady': function(e) { e.target.playVideo(); },
                   'onStateChange': (e) => { if(e.data == YT.PlayerState.ENDED) playNext(); } 
               } 
           });
-      } else { 
-          player.loadVideoById(next); 
-      } 
+      } else { player.loadVideoById(next); } 
   }
 
-  // Burlar la seguridad del navegador: Forzar el play al primer clic del usuario
   document.addEventListener('click', function() {
-      if(player && typeof player.playVideo === 'function' && player.getPlayerState() !== 1) { 
-          player.playVideo(); 
-      }
+      if(player && typeof player.playVideo === 'function' && player.getPlayerState() !== 1) { player.playVideo(); }
   }, {once:true});
 </script>
 """ % (tracks)
 
 with st.sidebar:
-    components.html(musica_html, height=2)
+    components.html(musica_html, height=1)
     st.markdown("---")
 
 with st.sidebar.form("atalaya"):
@@ -161,16 +155,17 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# CONFIGURACIÓN DEL ANCESTRO: LÍMITES FÍSICOS ESTABLECIDOS
 m = folium.Map(
     location=[l_lat, l_lon], 
     zoom_start=4, 
     min_zoom=3,
-    max_bounds=True,      # <--- BLOQUEA EL DESPLAZAMIENTO FUERA DEL MAPA
     tiles=None,
     world_copy_jump=True, 
     no_wrap=False         
 )
+
+# PARCHE QUIRÚRGICO: Pinta el "vacío" de Folium de color negro para que jamás veas blanco
+m.get_root().html.add_child(folium.Element("<style>.leaflet-container { background: #000000 !important; }</style>"))
 
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
@@ -183,5 +178,4 @@ for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
     folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
 
-# LA "Y" REDUCIDA A 800 PARA NO SOBREPASAR EL MAPA
 st_folium(m, width="100%", height=800, returned_objects=[])
