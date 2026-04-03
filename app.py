@@ -10,27 +10,36 @@ import random
 import streamlit.components.v1 as components
 from gtts import gTTS
 
-# --- 1. CONFIGURACIÓN DE INTERFAZ (SOLUCIÓN A BARRAS BLANCAS) ---
+# --- 1. CONFIGURACIÓN DE INTERFAZ (ELIMINACIÓN DE BARRAS Y MAPA INFINITO) ---
 st.set_page_config(page_title="Animus OS V6.2", layout="wide", initial_sidebar_state="expanded")
 
+# CSS AGRESIVO: Forzamos el ocultamiento de la interfaz de Streamlit
 st.markdown("""
     <style>
-    /* Ocultar elementos de la interfaz de Streamlit que causan barras blancas */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    /* Ocultar header, footer y menús de Streamlit con prioridad máxima */
+    header, footer, #MainMenu {visibility: hidden !important;}
     
-    /* Forzar fondo negro y eliminar espacios extra */
+    /* Eliminar espacios en blanco superiores y laterales */
     .stApp {
-        background-color: #000000;
-        color: #00ff00;
-    }
-    .block-container {
-        padding: 0rem !important;
-        max-width: 100%;
+        background-color: #000000 !important;
+        color: #00ff00 !important;
     }
     
-    /* Contenedor del reporte de Shaun */
+    /* Forzar que el contenido ocupe TODA la pantalla sin márgenes */
+    .block-container {
+        padding-top: 0rem !important;
+        padding-bottom: 0rem !important;
+        padding-left: 0rem !important;
+        padding-right: 0rem !important;
+        max-width: 100% !important;
+    }
+
+    /* Evitar el scroll horizontal que causa las barras blancas laterales */
+    html, body {
+        overflow-x: hidden !important;
+        background-color: #000000 !important;
+    }
+
     .report-container { 
         background-color: #050505; 
         border: 2px solid #00ff00; 
@@ -147,7 +156,7 @@ with st.sidebar.form("atalaya"):
                 st.session_state.ultimo_nodo = f"{nombre.upper()} [{tipo_f}]"
                 st.rerun()
 
-# --- 4. RENDERIZADO DEL MAPA (SOLUCIÓN AL MAPA INFINITO) ---
+# --- 4. RENDERIZADO DEL MAPA ---
 if st.session_state.ultima_transmision:
     st.markdown(f'<div class="report-container"><h3>> TRANSMISIÓN: {st.session_state.ultimo_nodo}</h3><p>{st.session_state.ultima_transmision}</p></div>', unsafe_allow_html=True)
     if os.path.exists("shaun_voice.mp3"): st.audio("shaun_voice.mp3", format="audio/mp3", autoplay=True)
@@ -158,12 +167,12 @@ if st.session_state.ultima_transmision:
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# Configuración del mapa para que no se multiplique lateralmente
+# Configuración del mapa blindada
 m = folium.Map(
     location=[l_lat, l_lon], 
     zoom_start=13, 
     tiles="CartoDB dark_matter",
-    no_wrap=True, # Evita la repetición del mapa a los lados
+    no_wrap=True, # Bloquea la repetición lateral
     world_copy_jump=False
 )
 
@@ -171,5 +180,5 @@ for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
     folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
 
-# Renderizado con ancho total y sin objetos de retorno innecesarios
-st_folium(m, width="100%", height=700, returned_objects=[])
+# Renderizado final con parámetros de retorno vacíos para optimizar
+st_folium(m, width="100%", height=800, returned_objects=[])
