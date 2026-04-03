@@ -75,7 +75,6 @@ st.sidebar.title("🦅 Sincronización Táctica")
 
 tracks = ["C_n-EcznZpE", "d5F9X6qeXco", "NVsSrJJIzDM", "RwDQZI_NRHA", "nyQEQM0CEBQ", "NEpjh30DLas", "PDVnsHC3ypQ"]
 
-# Interfaz HTML/JS: Un botón estético que activa el reproductor 1x1
 musica_html = """
 <div style="background-color: #050505; border: 1px solid #00ff00; padding: 10px; border-radius: 5px; text-align: center;">
     <button id="playBtn" style="background-color: #00ff00; color: #000; border: none; padding: 10px 20px; font-family: monospace; font-weight: bold; cursor: pointer; border-radius: 3px;">
@@ -144,7 +143,7 @@ musica_html = """
 """ % (tracks)
 
 with st.sidebar:
-    components.html(musica_html, height=100) # Contenedor visible solo para el botón
+    components.html(musica_html, height=100)
     st.markdown("---")
 
 with st.sidebar.form("atalaya"):
@@ -184,40 +183,42 @@ with st.sidebar.form("atalaya"):
                 st.rerun()
 
 # --- 4. RENDERIZADO DEL MAPA (CONFINAMIENTO MATEMÁTICO PERFECTO) ---
+if st.session_state.ultima_transmision:
+    st.markdown(f'<div class="report-container"><h3>> TRANSMISIÓN: {st.session_state.ultimo_nodo}</h3><p>{st.session_state.ultima_transmision}</p></div>', unsafe_allow_html=True)
+    if os.path.exists("shaun_voice.mp3"): st.audio("shaun_voice.mp3", format="audio/mp3", autoplay=True)
+    if st.button("❌ Cerrar"):
+        st.session_state.ultima_transmision = None
+        st.rerun()
+
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# MAPA BASE: Permite el loop en X infinito, bloqueado en Y
+# MAPA BASE: Inicialización limpia
 m = folium.Map(
     location=[l_lat, l_lon], 
     zoom_start=4, 
-    min_zoom=3,           # CRÍTICO: Evita que la altura del mapa sea menor a los 800px del contenedor
+    min_zoom=3,           
     tiles=None,
-    world_copy_jump=True, # Hace que los pines "salten" al mapa contiguo cuando das la vuelta
-    max_bounds=True,      
-    min_lat=-85.0511,     # Límite matemático real del Web Mercator en el Sur
-    max_lat=85.0511,      # Límite matemático real del Web Mercator en el Norte
-    min_lon=-1000000,     # Simula infinito a la izquierda
-    max_lon=1000000       # Simula infinito a la derecha
+    world_copy_jump=True,
+    no_wrap=False
 )
 
-# FONDO NEGRO DE SEGURIDAD
+# EL TRUCO DEFINITIVO: Inyectamos JavaScript nativo al motor de Leaflet.
+# Esto le dice al mapa: "Bloquea los bordes Y (latitud) en +/- 85.0511, pero deja los bordes X (longitud) en el infinito absoluto".
+m.get_root().script.add_child(folium.Element(f"""
+    {m.get_name()}.setMaxBounds([[-85.0511, -Infinity], [85.0511, Infinity]]);
+"""))
+
+# FONDO NEGRO: Por si alguien intenta hacer un zoom out extremo en un monitor ultra-panorámico
 m.get_root().html.add_child(folium.Element("<style>.leaflet-container { background: #000000 !important; }</style>"))
 
-# CAPA DE BALDOSAS CON BUCLE HORIZONTAL
+# CAPA DE BALDOSAS: Totalmente libre para repetir X al infinito
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
     attr='&copy; CARTO',
     name="CartoDB Dark Matter",
-    no_wrap=False, # Bucle infinito en X (Longitud)
-    bounds=[[-85.0511, -180], [85.0511, 180]] # Evita que intente cargar baldosas más allá de los polos
+    no_wrap=False
 ).add_to(m)
-
-for _, f in df.iterrows():
-    c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
-    folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
-
-st_folium(m, use_container_width=True, height=800, returned_objects=[])
 
 for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
