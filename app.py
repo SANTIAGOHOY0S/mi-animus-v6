@@ -183,41 +183,41 @@ with st.sidebar.form("atalaya"):
                 st.session_state.ultimo_nodo = f"{nombre.upper()} [{tipo_f}]"
                 st.rerun()
 
-# --- 4. RENDERIZADO DEL MAPA (CONFINAMIENTO MATEMÁTICO) ---
-if st.session_state.ultima_transmision:
-    st.markdown(f'<div class="report-container"><h3>> TRANSMISIÓN: {st.session_state.ultimo_nodo}</h3><p>{st.session_state.ultima_transmision}</p></div>', unsafe_allow_html=True)
-    if os.path.exists("shaun_voice.mp3"): st.audio("shaun_voice.mp3", format="audio/mp3", autoplay=True)
-    if st.button("❌ Cerrar"):
-        st.session_state.ultima_transmision = None
-        st.rerun()
-
+# --- 4. RENDERIZADO DEL MAPA (CONFINAMIENTO MATEMÁTICO PERFECTO) ---
 l_lat = df['Lat'].iloc[-1] if not df.empty else 4.711
 l_lon = df['Lon'].iloc[-1] if not df.empty else -74.072
 
-# MAPA BASE: Permite el loop en X infinito, bloqueado en Y con max_bounds
+# MAPA BASE: Permite el loop en X infinito, bloqueado en Y
 m = folium.Map(
     location=[l_lat, l_lon], 
     zoom_start=4, 
-    min_zoom=3,           
+    min_zoom=3,           # CRÍTICO: Evita que la altura del mapa sea menor a los 800px del contenedor
     tiles=None,
-    world_copy_jump=True,
+    world_copy_jump=True, # Hace que los pines "salten" al mapa contiguo cuando das la vuelta
     max_bounds=True,      
-    min_lat=-90,          
-    max_lat=90,           
-    min_lon=-100000,      
-    max_lon=100000        
+    min_lat=-85.0511,     # Límite matemático real del Web Mercator en el Sur
+    max_lat=85.0511,      # Límite matemático real del Web Mercator en el Norte
+    min_lon=-1000000,     # Simula infinito a la izquierda
+    max_lon=1000000       # Simula infinito a la derecha
 )
 
-# FONDO NEGRO: Evita ver el gris de desincronización si te sales del eje Y
+# FONDO NEGRO DE SEGURIDAD
 m.get_root().html.add_child(folium.Element("<style>.leaflet-container { background: #000000 !important; }</style>"))
 
-# CAPA DE BALDOSAS CON LOOP INIFINITO EN X
+# CAPA DE BALDOSAS CON BUCLE HORIZONTAL
 folium.TileLayer(
     tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
     attr='&copy; CARTO',
     name="CartoDB Dark Matter",
-    no_wrap=False
+    no_wrap=False, # Bucle infinito en X (Longitud)
+    bounds=[[-85.0511, -180], [85.0511, 180]] # Evita que intente cargar baldosas más allá de los polos
 ).add_to(m)
+
+for _, f in df.iterrows():
+    c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
+    folium.Marker([f['Lat'], f['Lon']], popup=f"{f['Tipo']}: {f['Nombre']}", icon=folium.Icon(color=c)).add_to(m)
+
+st_folium(m, use_container_width=True, height=800, returned_objects=[])
 
 for _, f in df.iterrows():
     c = 'green' if f['Tipo'] == 'CG' else 'blue' if f['Tipo'] == 'Universidad' else 'orange'
